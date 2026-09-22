@@ -1,0 +1,47 @@
+# Deploy the unmodified upstream release using bin/deploy-sign, not kamal deploy.
+service: sign
+image: docuseal/docuseal
+
+servers:
+  web:
+    hosts:
+      - 104.131.24.46
+    options:
+      memory: 1g
+      init: true
+      workdir: /app
+
+# Kamal requires these fields. bin/deploy-sign pulls the public image anonymously
+# and uses app boot, which does not log in to a registry. These are not secrets.
+registry:
+  username: unused-public-image
+  password: unused-public-image
+
+proxy:
+  host: sign.gxb.vc
+  ssl: true
+  app_port: 3000
+  response_timeout: 120
+  healthcheck:
+    path: /up
+    interval: 3
+    timeout: 5
+
+env:
+  clear:
+    APP_URL: https://sign.gxb.vc
+    FORCE_SSL: "true"
+    RAILS_LOG_TO_STDOUT: "true"
+    # Email is deliberately disabled for the initial review-only deployment.
+    SMTP_ADDRESS: 127.0.0.1
+    SMTP_PORT: "1"
+    SMTP_OPEN_TIMEOUT: "2"
+
+volumes:
+  - sign_storage:/data/docuseal
+
+builder:
+  arch: amd64
+
+deploy_timeout: 180
+retain_containers: 3
