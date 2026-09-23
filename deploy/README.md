@@ -34,7 +34,7 @@ Release directories are not overwritten. If activation fails after preparation, 
 
 ## Branding and source
 
-The initializer prepends the custom view directory to Rails controllers, including the standalone PWA controller. It does not change `Docuseal.product_name`, license checks, email attribution, or signing logic. Metadata keeps upstream private-preview suppression and per-document titles.
+The initializer prepends the custom view directory to Rails controllers, including the standalone PWA controller. It does not change `Docuseal.product_name`, license checks, email attribution, or signing logic. The Vue document editor has a separate inline logo. `builder-branding-v1.css` displays the signature icon in that home link while keeping Vue's DOM and its 40px size intact. The selector is limited to the editor header; other SVGs and attribution are unchanged. The candidate also checks the authenticated editor layout. Use a new stylesheet filename when changing it because public assets are cached. Metadata keeps upstream private-preview suppression and per-document titles.
 
 The Lucide Signature SVG is white on a black circle. Its license is in `branding/LUCIDE-LICENSE`. PNG and ICO versions are committed. To regenerate icons, use ImageMagick with a transparent background and the required dimensions. Public files are normalized to readable permissions during packaging.
 
@@ -60,7 +60,7 @@ To verify authentication from the deployed container without sending mail:
 BUNDLE_GEMFILE=deploy/Gemfile kamal-cli runner deploy/verify_smtp.rb
 ```
 
-Christian approved the existing queued invitation to `ricky@gxb.vc` on 2026-09-22. It remains queued for its normal retry. No extra test message or signature request is authorized. Before changing providers or enabling mail again, inspect pending jobs so old messages do not send unexpectedly.
+Christian approved the existing queued invitation to `ricky@gxb.vc` on 2026-09-22. Its existing queued job was retried immediately at his request and completed on 2026-09-22. No extra test message or signature request is authorized. Before changing providers or enabling mail again, inspect pending jobs so old messages do not send unexpectedly.
 
 Imported agreements remain drafts. Do not send signature requests or change contract terms without approval. Automated off-server backups must be configured before using the app for executed agreements.
 

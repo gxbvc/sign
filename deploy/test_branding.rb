@@ -90,6 +90,16 @@ class BrandingTest < Minitest::Test
     assert File.file?(File.join(ROOT, 'LUCIDE-LICENSE'))
   end
 
+  def test_vue_builder_logo_styles_are_loaded_and_scoped
+    html = render_file('views/layouts/_head_tags.html.erb')
+    assert_includes html, 'href="/gxb-sign/builder-branding-v1.css"'
+    css = File.read(File.join(ROOT, 'public/builder-branding-v1.css'))
+    assert_includes css, 'template-builder #title_container a[href="/"] > svg {'
+    assert_includes css, 'url("/gxb-sign/favicon.svg")'
+    assert_includes css, 'template-builder #title_container a[href="/"] > svg > *'
+    assert_includes css, 'visibility: hidden'
+  end
+
   def test_erb_syntax
     Dir[File.join(ROOT, 'views/**/*.erb')].each do |path|
       RubyVM::InstructionSequence.compile(ERB.new(File.read(path)).src)
