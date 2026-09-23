@@ -20,6 +20,6 @@ The public image is pulled by digest over SSH, then activated through `kamal app
 - Persistent Docker volume: `sign_storage`, mounted at `/data/docuseal`. It holds SQLite, uploaded documents, and generated signing/encryption secrets. Never delete it or print its secrets.
 - Initialize the first admin privately, before publishing the proxy route. The public setup route must no longer accept account creation.
 - The free license requires original DocuSeal attribution. Do not remove it or enable paid features without approval.
-- Initial deployment is review-only: outbound SMTP is deliberately disabled. No invitations have been authorized.
+- Outbound SMTP remains disabled pending provider verification. The configured sender is `GXB Sign <sign@gxb.vc>`. No invitations have been authorized.
 - Imported agreements are drafts for review. Do not alter contract terms or send signature requests without approval.
 - `plans/01-*` through `03-*` are old proposals, not proof of the current configuration. This file and `deploy/README.md` describe the actual deployment.

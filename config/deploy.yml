@@ -32,7 +32,8 @@ env:
     APP_URL: https://sign.gxb.vc
     FORCE_SSL: "true"
     RAILS_LOG_TO_STDOUT: "true"
-    # Email is deliberately disabled for the initial review-only deployment.
+    SMTP_FROM: "GXB Sign <sign@gxb.vc>"
+    # Delivery stays disabled until the sending provider is verified.
     SMTP_ADDRESS: 127.0.0.1
     SMTP_PORT: "1"
     SMTP_OPEN_TIMEOUT: "2"

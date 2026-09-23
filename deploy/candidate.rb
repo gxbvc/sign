@@ -12,7 +12,7 @@ module SignCandidate
                '--memory', '1g', '--workdir', '/app',
                '-e', 'SIGN_BRANDING_CHECK=true', '-e', 'APP_URL=http://localhost',
                '-e', 'SMTP_ADDRESS=127.0.0.1', '-e', 'SMTP_PORT=1',
-               '-e', 'SMTP_FROM=GXB Sign <sign@gxb.vc>']
+               '-e', "SMTP_FROM=#{config.fetch('env').fetch('clear').fetch('SMTP_FROM')}"]
     config.fetch('volumes').drop(1).each { |volume| command.concat(['-v', volume]) }
     command << image
     output, status = Open3.capture2e(*ssh, command.shelljoin)

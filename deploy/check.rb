@@ -23,6 +23,7 @@ check("branding tests", system(RbConfig.ruby, File.join(__dir__, "test_branding.
 ruby_files = Dir[File.join(__dir__, "*.rb")] + [File.join(__dir__, "branding/initializer.rb"), File.join(ROOT, "bin/deploy-sign")]
 check("deployment Ruby lint", system({ "BUNDLE_GEMFILE" => File.join(__dir__, "Gemfile") }, "bundle", "exec", "rubocop", "--config", File.join(__dir__, "rubocop.yml"), *ruby_files))
 check("no public app port", !config.dig("servers", "web", "options").key?("publish"))
+check("mail sender", config.dig("env", "clear", "SMTP_FROM") == "GXB Sign <sign@gxb.vc>")
 check("mail disabled", config.dig("env", "clear", "SMTP_ADDRESS") == "127.0.0.1" && config.dig("env", "clear", "SMTP_PORT") == "1")
 check("upstream image", release.fetch("image") == "docuseal/docuseal" && config.fetch("image") == release.fetch("image"))
 check("pinned digest", release.fetch("digest").match?(/\Asha256:[a-f0-9]{64}\z/))
