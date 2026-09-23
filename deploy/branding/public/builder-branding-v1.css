@@ -1,0 +1,9 @@
+/* The pinned upstream Vue editor has its own inline logo, separate from Rails.
+   Keep its 40px home link and Vue-owned DOM intact; change only its appearance. */
+template-builder #title_container a[href="/"] > svg {
+  background: url("/gxb-sign/favicon.svg") center / contain no-repeat;
+}
+
+template-builder #title_container a[href="/"] > svg > * {
+  visibility: hidden;
+}
