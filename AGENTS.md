@@ -4,11 +4,11 @@ Free DocuSeal at https://sign.gxb.vc on DigitalOcean `gxb-nyc1` (`104.131.24.46`
 
 ## Deployment
 
-This checkout contains an older upstream source tree. Production uses the **unmodified official image**, not a build of this tree. `deploy/release.json` pins its release, digest, source commit, and upstream CI runs. Do not mix the local source version with the production version.
+This checkout contains an older upstream source tree. Production pulls the **official image by digest**, not a build of this tree, and mounts the presentation files in `deploy/branding` read-only. `deploy/release.json` pins the upstream release, digest, source commit, and CI runs. The container version and branding directory use the deployment Git commit. Do not mix the local source version with the production version.
 
 - Deployment tooling: `BUNDLE_GEMFILE=deploy/Gemfile bundle install`.
-- Checks: `ruby deploy/check.rb`, `ruby -c bin/deploy-sign`, `git diff --check`.
-- The release check requires successful upstream RSpec, RuboCop, ERB lint, ESLint, Brakeman, and image build for the exact release commit. It does not claim to run the older source tree's suite locally.
+- Checks: `ruby deploy/check.rb`, `ruby -c bin/deploy-sign`, `git diff --check`. Run `ruby deploy/prepare.rb check-UNIQUE-ID` before committing to test the candidate against the actual image.
+- The release check requires successful upstream RSpec, RuboCop, ERB lint, ESLint, Brakeman, and image build for the exact release commit. It also tests the branding templates and image dimensions. The disposable candidate tests real Rails rendering and static assets without the production volume. The older source tree's suite is not the deployed suite.
 - Commit deployment changes on `master`, then `bin/deploy-sign`.
 - Logs: `BUNDLE_GEMFILE=deploy/Gemfile bundle exec kamal app logs -n 80`.
 - Production runner: `BUNDLE_GEMFILE=deploy/Gemfile kamal-cli runner FILE.rb`. The container starts in `/app`; `WORKDIR=/data/docuseal` still controls persistent data.

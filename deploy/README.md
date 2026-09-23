@@ -2,43 +2,56 @@
 
 - URL: https://sign.gxb.vc
 - Server: DigitalOcean `gxb-nyc1`, `104.131.24.46`, NYC3.
-- Edition: free, unmodified DocuSeal 3.2.6. Required attribution retained.
-- Release: `release.json` records the immutable image digest and source commit.
-- Routing: the server's existing kamal-proxy provides HTTPS on ports 80/443. DocuSeal's port 3000 is only on the Docker network.
-- Data: Docker volume `sign_storage` at `/data/docuseal`, including SQLite, attachments and generated keys. Container replacements retain this volume.
-- Email: disabled until a separate sending request and SMTP setup. This deployment is for document review.
+- Upstream: free DocuSeal 3.2.6, pulled by the digest in `release.json`. No source build.
+- Branding: `branding/` is a read-only presentation layer over the official image. Required DocuSeal attribution remains. No paid features are enabled.
+- Version: the deployment Git commit identifies the container and `/opt/sign/branding/COMMIT` directory.
+- Routing: the existing shared kamal-proxy provides HTTPS. The app's port 3000 stays on the Docker network.
+- Data: `sign_storage:/data/docuseal` holds SQLite, attachments, and generated keys. Never remove it.
 
-## Commands
-
-From `~/projects/sign`:
+## Checks and deployment
 
 ```sh
 BUNDLE_GEMFILE=deploy/Gemfile bundle install
 ruby deploy/check.rb
 ruby -c bin/deploy-sign
 git diff --check
-# Commit approved changes on master before deployment.
+# Use a unique candidate ID. This never mounts production storage.
+ruby deploy/prepare.rb check-YYYYMMDD-HHMMSS
+# Commit changes on master, then:
 bin/deploy-sign
 BUNDLE_GEMFILE=deploy/Gemfile bundle exec kamal app version
 BUNDLE_GEMFILE=deploy/Gemfile bundle exec kamal app logs -n 80
-curl -I https://sign.gxb.vc/up
+ruby deploy/verify.rb
 ```
 
-The check script validates the deployment configuration and checks the exact release commit's successful upstream RSpec, Ruby/ERB/JavaScript lint, security scan, and Docker build. Local infrastructure checks run here. No local application code is included in the deployed image, and the older source tree's tests are not represented as local release tests.
+`check.rb` verifies successful upstream RSpec, Ruby/ERB/JavaScript lint, security scan, and Docker build for the exact release commit. It runs Ruby lint for the deployment layer and local tests for metadata, document title suffixes, private previews, attribution, the manifest, and icon dimensions. The older checkout's Rails suite is not the deployed suite.
 
-Kamal's normal `deploy -P` performs a registry login, even for public images. `bin/deploy-sign` instead verifies the shared proxy is running, pulls the pinned digest anonymously, tags that artifact with its release version, and uses `kamal app boot`. It does not change or restart the shared proxy. Do not use the unused registry placeholders to attempt a login.
+`prepare.rb` downloads corresponding upstream source, packages the branding layer, uploads it to a new immutable directory, and starts a disposable container. The candidate has no public port, production volume, or SMTP credentials. Real Rails checks cover the landing page, metadata, attribution, source link, manifest, setup lock, and unsent email headers. HTTP checks confirm every public asset. The candidate is stopped after the checks, including on failure. Failed candidate directories are retained for inspection.
 
-## First initialization
+`bin/deploy-sign` requires committed deployment files. It repeats checks and candidate tests, tags the same official image with the deployment commit, and uses `kamal app boot`. It does not run a registry login or change the shared proxy. Registry fields in `config/deploy.yml` are unused placeholders.
 
-Before the public proxy route was enabled, the candidate was started as `sign-bootstrap` with port 3000 bound only to server loopback at port 3306. An SSH tunnel exposed it locally at port 13306 for first-admin setup. The bootstrap process must be stopped before the production process uses the same volume. Close the SSH tunnel after setup. Never expose an unclaimed setup form publicly.
+Release directories are not overwritten. If activation fails after preparation, inspect the failure and existing release before retrying. Keep directories referenced by running or rollback containers. Remove only unused candidate directories after inspection.
 
-## Upgrade and recovery
+## Branding and source
 
-1. Select an upstream release with all required CI checks passing.
-2. Record its source commit and Docker digest in `release.json`.
-3. Back up the full data volume and test recovery before any upgrade that changes the database.
-4. Run the checks, commit, and deploy.
+The initializer prepends the custom view directory to Rails controllers, including the standalone PWA controller. It does not change `Docuseal.product_name`, license checks, email attribution, or signing logic. Metadata keeps upstream private-preview suppression and per-document titles.
 
-Do not roll back an application image across an incompatible database migration. Never run `kamal app remove` or remove `sign_storage` as a routine redeploy.
+The Lucide Signature SVG is white on a black circle. Its license is in `branding/LUCIDE-LICENSE`. PNG and ICO versions are committed. To regenerate icons, use ImageMagick with a transparent background and the required dimensions. Public files are normalized to readable permissions during packaging.
 
-Persistent storage is configured. Automated off-server backups and SMTP are not part of this initial review deployment; configure them before using the app for executed agreements.
+`branding/public/og-image.html` is the editable 1200×630 share image. Render with:
+
+```sh
+html-to-image deploy/branding/public/og-image.html --scale 1
+```
+
+Every deployment publishes `/gxb-sign/source.tar.gz`, linked from the retained DocuSeal footer. It contains the pinned upstream source and this deployment layer, including build/deployment instructions. No credentials, user data, or documents are included. To reproduce the presentation layer, use the pinned upstream image with the mounts in `config/deploy.yml`; the image itself is unchanged.
+
+## Data, mail, and recovery
+
+The first admin was initialized privately before the route was published. Verify `/setup` redirects rather than accepting public account creation.
+
+SMTP remains disabled until the sending provider is verified for `sign@gxb.vc`. Branding checks validate the intended sender header without sending a message.
+
+Imported agreements remain drafts. Do not send signature requests or change contract terms without approval. Automated off-server backups must be configured before using the app for executed agreements.
+
+Before upgrading upstream, back up the full volume and test recovery. Select a release whose required upstream CI passes, update `release.json`, and repeat candidate checks. Do not roll back across incompatible database migrations. A branding-only rollback to an earlier branded commit needs its original image tag and `SIGN_DEPLOY_VERSION` mount directory. Never run `kamal app remove` or remove the persistent volume during redeployment.

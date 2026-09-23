@@ -1,4 +1,4 @@
-# Deploy the unmodified upstream release using bin/deploy-sign, not kamal deploy.
+# Pull the pinned upstream image and mount the branding layer. Never build this checkout.
 service: sign
 image: docuseal/docuseal
 
@@ -39,6 +39,11 @@ env:
 
 volumes:
   - sign_storage:/data/docuseal
+  - /opt/sign/branding/<%= ENV.fetch('SIGN_DEPLOY_VERSION', 'candidate') %>:/opt/gxb-sign:ro
+  - /opt/sign/branding/<%= ENV.fetch('SIGN_DEPLOY_VERSION', 'candidate') %>/public:/app/public/gxb-sign:ro
+  - /opt/sign/branding/<%= ENV.fetch('SIGN_DEPLOY_VERSION', 'candidate') %>/initializer.rb:/app/config/initializers/gxb_sign.rb:ro
+  - /opt/sign/branding/<%= ENV.fetch('SIGN_DEPLOY_VERSION', 'candidate') %>/public/favicon.ico:/app/public/favicon.ico:ro
+  - /opt/sign/branding/<%= ENV.fetch('SIGN_DEPLOY_VERSION', 'candidate') %>/public/favicon.svg:/app/public/favicon.svg:ro
 
 builder:
   arch: amd64
