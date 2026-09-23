@@ -1,0 +1,35 @@
+<% if Docuseal.demo? || (request.path != '/' && !devise_controller?) %>
+  <meta name="robots" content="noindex">
+<% end %>
+<% title = content_for(:html_title).presence&.sub(/\s*\| DocuSeal\z/, ' | GXB Sign') || 'GXB Sign' %>
+<% description = content_for(:html_description).presence || 'Review, fill out, and sign documents online with GXB Sign.' %>
+<meta name="application-name" content="GXB Sign">
+<meta name="apple-mobile-web-app-title" content="GXB Sign">
+<meta name="description" content="<%= description %>">
+<meta property="og:title" content="<%= title %>">
+<meta property="og:description" content="<%= description %>">
+<meta property="og:type" content="website">
+<meta property="og:url" content="<%= root_url %>">
+<meta property="og:site_name" content="GXB Sign">
+<% if content_for(:disable_image_preview) %>
+  <meta property="og:image" content="">
+  <meta name="twitter:image" content="">
+<% else %>
+  <% image = content_for(:preview_image_url).presence || "#{root_url}gxb-sign/og-image.png" %>
+  <meta property="og:image" content="<%= image %>">
+  <meta name="twitter:image" content="<%= image %>">
+  <% unless content_for(:preview_image_url).present? %>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="GXB Sign. Review and sign documents online.">
+    <meta name="twitter:image:alt" content="GXB Sign. Review and sign documents online.">
+  <% end %>
+<% end %>
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="<%= title %>">
+<meta name="twitter:description" content="<%= description %>">
+<link rel="apple-touch-icon" sizes="180x180" href="/gxb-sign/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/gxb-sign/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/gxb-sign/favicon-16x16.png">
+<link rel="icon" type="image/svg+xml" href="/gxb-sign/favicon.svg">
+<meta name="theme-color" content="#000000">

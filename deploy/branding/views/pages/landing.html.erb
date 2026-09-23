@@ -1,0 +1,7 @@
+<section class="py-16 px-4 mx-auto max-w-2xl text-center">
+  <%= render 'shared/logo', width: '100', height: '100', class: 'mx-auto' %>
+  <h1 class="text-5xl font-bold mt-6 mb-4">GXB Sign</h1>
+  <p class="text-xl mb-8">Review, fill out, and sign documents online.</p>
+  <%= link_to t('sign_in'), new_user_session_path, class: 'btn btn-primary' %>
+</section>
+<%= render 'shared/attribution', with_counter: true %>

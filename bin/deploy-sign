@@ -1,25 +1,32 @@
 #!/usr/bin/env ruby
-# Deploy only the pinned, unmodified public release. Never build this checkout.
-require "json"
-require "yaml"
-require "shellwords"
+# Pull the pinned official image and mount a tested, versioned presentation layer.
+# Never build the older source checkout or modify the shared proxy.
+require 'json'
+require 'yaml'
+require 'erb'
+require 'shellwords'
+require_relative '../deploy/prepare'
 
-Dir.chdir(File.expand_path("..", __dir__))
-release = JSON.parse(File.read("deploy/release.json"))
-config = YAML.safe_load_file("config/deploy.yml")
-abort "Unexpected image" unless release.fetch("image") == config.fetch("image")
-abort "Invalid version" unless release.fetch("version").match?(/\A\d+\.\d+\.\d+\z/)
-abort "Invalid digest" unless release.fetch("digest").match?(/\Asha256:[a-f0-9]{64}\z/)
-abort "Commit deployment changes first" unless `git status --porcelain -- config/deploy.yml deploy bin/deploy-sign`.strip.empty?
-abort "Deployment checks failed" unless system(RbConfig.ruby, "deploy/check.rb")
+Dir.chdir(File.expand_path('..', __dir__))
+release = JSON.parse(File.read('deploy/release.json'))
+version = `git rev-parse HEAD`.strip
+abort 'Invalid deployment commit' unless version.match?(/\A[a-f0-9]{40}\z/)
+ENV['SIGN_DEPLOY_VERSION'] = version
+config = YAML.safe_load(ERB.new(File.read('config/deploy.yml')).result)
+abort 'Unexpected image' unless release.fetch('image') == config.fetch('image')
+abort 'Invalid version' unless release.fetch('version').match?(/\A\d+\.\d+\.\d+\z/)
+abort 'Invalid digest' unless release.fetch('digest').match?(/\Asha256:[a-f0-9]{64}\z/)
+abort 'Commit deployment changes first' unless `git status --porcelain -- config/deploy.yml deploy bin/deploy-sign AGENTS.md .kamal`.strip.empty?
+abort 'Deployment checks failed' unless system(RbConfig.ruby, 'deploy/check.rb')
 
-host = config.fetch("servers").fetch("web").fetch("hosts").fetch(0)
+host = config.fetch('servers').fetch('web').fetch('hosts').first
+abort 'Shared proxy is not running' unless system('ssh', '-o', 'BatchMode=yes', "root@#{host}",
+                                                 "docker inspect kamal-proxy --format '{{.State.Running}}' | grep -qx true")
+SignPrepare.run(version)
 image = "#{release.fetch('image')}@#{release.fetch('digest')}"
-tag = "#{release.fetch('image')}:#{release.fetch('version')}"
-remote = "docker inspect kamal-proxy --format '{{.State.Running}}' | grep -qx true && " \
-         "docker pull #{Shellwords.escape(image)} && " \
-         "docker tag #{Shellwords.escape(image)} #{Shellwords.escape(tag)}"
-abort "Image pull or proxy check failed" unless system("ssh", "-o", "BatchMode=yes", "root@#{host}", remote)
+tag = "#{release.fetch('image')}:#{version}"
+abort 'Image tagging failed' unless system('ssh', '-o', 'BatchMode=yes', "root@#{host}",
+                                         ['docker', 'tag', image, tag].shelljoin)
 
-ENV["BUNDLE_GEMFILE"] = File.expand_path("deploy/Gemfile")
-exec "bundle", "exec", "kamal", "app", "boot", "--version", release.fetch("version")
+ENV['BUNDLE_GEMFILE'] = File.expand_path('deploy/Gemfile')
+exec 'bundle', 'exec', 'kamal', 'app', 'boot', '--version', version
