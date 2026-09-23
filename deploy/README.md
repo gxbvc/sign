@@ -50,7 +50,17 @@ Every deployment publishes `/gxb-sign/source.tar.gz`, linked from the retained D
 
 The first admin was initialized privately before the route was published. Verify `/setup` redirects rather than accepting public account creation.
 
-SMTP remains disabled until the sending provider is verified for `sign@gxb.vc`. Branding checks validate the intended sender header without sending a message.
+Outgoing mail uses Mailgun at `smtp.mailgun.org:587`, with required STARTTLS and certificate verification. The visible sender is `GXB Sign <sign@gxb.vc>`. Authentication uses the existing `auth@gxb.vc` Mailgun domain credential; the SMTP login does not determine the visible sender. The domain is verified, and authentication plus the `sign@gxb.vc` envelope sender have been accepted without sending a test message.
+
+Credentials are stored outside Git in `~/.config/sign/smtp.json`, owned by the deploying user with mode 0600. It is a JSON object with `SMTP_USERNAME` and `SMTP_PASSWORD`. `.kamal/secrets` uses `deploy/smtp_secret.rb` to load these values into Kamal's secret environment file. Do not run the loader directly or print `kamal config`. `SIGN_SMTP_FILE` can select a different protected file. The source archive contains only the loader and template, never credential values. Tests use fake credentials and check permissions and literal special characters.
+
+To verify authentication from the deployed container without sending mail:
+
+```sh
+BUNDLE_GEMFILE=deploy/Gemfile kamal-cli runner deploy/verify_smtp.rb
+```
+
+Christian approved the existing queued invitation to `ricky@gxb.vc` on 2026-09-22. It remains queued for its normal retry. No extra test message or signature request is authorized. Before changing providers or enabling mail again, inspect pending jobs so old messages do not send unexpectedly.
 
 Imported agreements remain drafts. Do not send signature requests or change contract terms without approval. Automated off-server backups must be configured before using the app for executed agreements.
 

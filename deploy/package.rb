@@ -23,7 +23,7 @@ module SignPackage
       url = "https://api.github.com/repos/docusealco/docuseal/tarball/#{release.fetch('source_commit')}"
       raise 'Upstream source download failed' unless system('curl', '-fsSL', url, '-o', archive)
       raise 'Source extraction failed' unless system('tar', '-xzf', archive, '-C', upstream, '--strip-components=1')
-      %w[deploy config/deploy.yml bin/deploy-sign AGENTS.md LICENSE LICENSE_ADDITIONAL_TERMS].each do |path|
+      %w[deploy config/deploy.yml bin/deploy-sign .kamal/secrets AGENTS.md LICENSE LICENSE_ADDITIONAL_TERMS].each do |path|
         target = File.join(deployment, path)
         FileUtils.mkdir_p(File.dirname(target))
         FileUtils.cp_r(File.join(ROOT, path), target)

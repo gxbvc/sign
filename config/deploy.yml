@@ -33,10 +33,17 @@ env:
     FORCE_SSL: "true"
     RAILS_LOG_TO_STDOUT: "true"
     SMTP_FROM: "GXB Sign <sign@gxb.vc>"
-    # Delivery stays disabled until the sending provider is verified.
-    SMTP_ADDRESS: 127.0.0.1
-    SMTP_PORT: "1"
-    SMTP_OPEN_TIMEOUT: "2"
+    SMTP_ADDRESS: smtp.mailgun.org
+    SMTP_PORT: "587"
+    SMTP_DOMAIN: sign.gxb.vc
+    SMTP_AUTHENTICATION: plain
+    SMTP_ENABLE_STARTTLS: "true"
+    SMTP_SSL_VERIFY: "true"
+    SMTP_OPEN_TIMEOUT: "15"
+    SMTP_READ_TIMEOUT: "25"
+  secret:
+    - SMTP_USERNAME
+    - SMTP_PASSWORD
 
 volumes:
   - sign_storage:/data/docuseal
