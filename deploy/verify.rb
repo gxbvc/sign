@@ -3,6 +3,9 @@
 require 'net/http'
 require 'json'
 require 'digest'
+require 'zlib'
+require 'stringio'
+require 'rubygems/package'
 
 origin = 'https://sign.gxb.vc'
 fetch = lambda do |path|
@@ -30,8 +33,11 @@ end
 %w[favicon.svg favicon.ico].each do |name|
   abort "FAIL: root #{name}" unless fetch.call("/#{name}") == File.binread(File.join(__dir__, 'branding/public', name))
 end
-source = Net::HTTP.start('sign.gxb.vc', 443, use_ssl: true) { |http| http.head('/gxb-sign/source.tar.gz') }
-abort 'FAIL: source archive' unless source.code == '200' && source['content-length'].to_i.positive?
+source = Zlib::GzipReader.new(StringIO.new(fetch.call('/gxb-sign/source.tar.gz'))).read
+entries = Gem::Package::TarReader.new(StringIO.new(source)).map(&:full_name)
+%w[source/docuseal/LICENSE source/gxb-sign-deployment/deploy/release.json source/gxb-sign-deployment/deploy/branding/initializer.rb].each do |path|
+  abort "FAIL: source archive missing #{path}" unless entries.include?(path)
+end
 setup = Net::HTTP.get_response(URI("#{origin}/setup"))
 abort 'FAIL: public setup is not locked' unless %w[301 302 303].include?(setup.code)
 puts 'PASS: live health, metadata, manifest, exact public assets, source archive, attribution, and setup lock'
