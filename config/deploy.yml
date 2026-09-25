@@ -1,6 +1,7 @@
-# Pull the pinned upstream image and mount the branding layer. Never build this checkout.
+# Build this checkout (DocuSeal source plus the GXB overlay) and push to GHCR.
+# Branding and the source archive are baked into the image. See deploy/README.md.
 service: sign
-image: docuseal/docuseal
+image: gxbvc/sign
 
 servers:
   web:
@@ -11,11 +12,11 @@ servers:
       init: true
       workdir: /app
 
-# Kamal requires these fields. bin/deploy-sign pulls the public image anonymously
-# and uses app boot, which does not log in to a registry. These are not secrets.
 registry:
-  username: unused-public-image
-  password: unused-public-image
+  server: ghcr.io
+  username: christiangenco
+  password:
+    - KAMAL_REGISTRY_PASSWORD
 
 proxy:
   host: sign.gxb.vc
@@ -47,14 +48,12 @@ env:
 
 volumes:
   - sign_storage:/data/docuseal
-  - /opt/sign/branding/<%= ENV.fetch('SIGN_DEPLOY_VERSION', 'candidate') %>:/opt/gxb-sign:ro
-  - /opt/sign/branding/<%= ENV.fetch('SIGN_DEPLOY_VERSION', 'candidate') %>/public:/app/public/gxb-sign:ro
-  - /opt/sign/branding/<%= ENV.fetch('SIGN_DEPLOY_VERSION', 'candidate') %>/initializer.rb:/app/config/initializers/gxb_sign.rb:ro
-  - /opt/sign/branding/<%= ENV.fetch('SIGN_DEPLOY_VERSION', 'candidate') %>/public/favicon.ico:/app/public/favicon.ico:ro
-  - /opt/sign/branding/<%= ENV.fetch('SIGN_DEPLOY_VERSION', 'candidate') %>/public/favicon.svg:/app/public/favicon.svg:ro
 
+# Local Docker is not running. Build on the app host's BuildKit, like ~/projects/chat.
 builder:
   arch: amd64
+  context: .
+  remote: ssh://root@104.131.24.46
 
 deploy_timeout: 180
 retain_containers: 3

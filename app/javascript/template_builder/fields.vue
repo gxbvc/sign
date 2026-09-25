@@ -555,8 +555,10 @@ export default {
       return this.template.schema.some((item) => item.dynamic)
     },
     numberOfPages () {
-      return this.template.documents.reduce((acc, doc) => {
-        return acc + doc.metadata?.pdf?.number_of_pages || doc.preview_images.length
+      return this.template.schema.reduce((acc, item) => {
+        const doc = this.template.documents.find((d) => d.uuid === item.attachment_uuid)
+
+        return acc + (doc?.metadata?.pdf?.number_of_pages || doc?.preview_images?.length || 0)
       }, 0)
     },
     isShowFieldSearch () {
@@ -774,9 +776,10 @@ export default {
         headers: {
           'Content-Type': 'application/json'
         },
-        ...(this.withDetectExistingFields
-          ? { body: JSON.stringify({ fields: this.buildExistingFields() }) }
-          : {})
+        body: JSON.stringify({
+          attachment_uuid: this.template.schema.map((item) => item.attachment_uuid),
+          ...(this.withDetectExistingFields ? { fields: this.buildExistingFields() } : {})
+        })
       }).then(async (response) => {
         const reader = response.body.getReader()
         const decoder = new TextDecoder('utf-8')

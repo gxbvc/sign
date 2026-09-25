@@ -36,9 +36,10 @@ end
 end
 source = Zlib::GzipReader.new(StringIO.new(fetch.call('/gxb-sign/source.tar.gz'))).read
 entries = Gem::Package::TarReader.new(StringIO.new(source)).map(&:full_name)
-%w[source/docuseal/LICENSE source/gxb-sign-deployment/deploy/release.json source/gxb-sign-deployment/deploy/branding/initializer.rb].each do |path|
+%w[gxb-sign/LICENSE gxb-sign/LICENSE_ADDITIONAL_TERMS gxb-sign/Dockerfile gxb-sign/deploy/release.json gxb-sign/deploy/branding/initializer.rb].each do |path|
   abort "FAIL: source archive missing #{path}" unless entries.include?(path)
 end
+abort "FAIL: source archive has ignored or secret files" if entries.any? { |path| path.match?(%r{\Agxb-sign/(deploy/build/|config/master\.key|\.env|plans/)}) }
 setup = Net::HTTP.get_response(URI("#{origin}/setup"))
 abort 'FAIL: public setup is not locked' unless %w[301 302 303].include?(setup.code)
 puts 'PASS: live health, metadata, manifest, exact public assets, source archive, attribution, and setup lock'

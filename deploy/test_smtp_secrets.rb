@@ -22,10 +22,19 @@ class SmtpSecretsTest < Minitest::Test
     Dir.rmdir(@directory)
   end
 
+  # Parse only the SMTP lines. Other lines (for example the registry token) run real commands,
+  # and a failure diff must never print their values.
   def test_kamal_dotenv_round_trip
-    Dir.chdir(File.expand_path('..', __dir__)) do
-      assert_equal @values, Dotenv.parse('.kamal/secrets', overwrite: true)
+    root = File.expand_path('..', __dir__)
+    lines = File.readlines(File.join(root, '.kamal/secrets')).grep(/\ASMTP_/)
+    assert_equal(%w[SMTP_USERNAME SMTP_PASSWORD], lines.map { |line| line.split('=', 2).first })
+    subset = File.join(@directory, 'secrets')
+    File.write(subset, lines.join, perm: 0o600)
+    Dir.chdir(root) do
+      assert_equal @values, Dotenv.parse(subset, overwrite: true)
     end
+  ensure
+    File.unlink(subset) if subset && File.exist?(subset)
   end
 
   def test_rejects_readable_secret_file_without_leaking

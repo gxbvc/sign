@@ -1,43 +1,40 @@
 # frozen_string_literal: true
 
+# Test a built image before activation. Usage:
+#   ruby deploy/prepare.rb COMMIT_SHA BACKUP_TARBALL_NAME
+# The image ghcr.io/gxbvc/sign:COMMIT_SHA must already be pushed. This pulls it on the host with Kamal,
+# then runs candidate mode A (empty temp volume) and mode B (copy of /opt/sign/backups/BACKUP_TARBALL_NAME).
 require 'erb'
 require 'yaml'
 require 'json'
-require 'tmpdir'
-require 'shellwords'
-require_relative 'package'
 require_relative 'candidate'
 
 module SignPrepare
-  def self.run(version)
-    raise 'Invalid deployment version' unless version.match?(/\A[a-zA-Z0-9.-]+\z/)
-    ENV['SIGN_DEPLOY_VERSION'] = version
+  def self.run(version, backup)
+    raise 'Invalid deployment version' unless version.match?(/\A[a-f0-9]{40}\z/)
+    raise 'Backup tarball name required' if backup.to_s.empty?
+
     root = File.expand_path('..', __dir__)
     config = YAML.safe_load(ERB.new(File.read(File.join(root, 'config/deploy.yml'))).result)
     release = JSON.parse(File.read(File.join(__dir__, 'release.json')))
     host = config.fetch('servers').fetch('web').fetch('hosts').first
-    image = "#{release.fetch('image')}@#{release.fetch('digest')}"
-    ssh = ['ssh', '-o', 'BatchMode=yes', "root@#{host}"]
-    raise 'Pinned image pull failed' unless system(*ssh, ['docker', 'pull', image].shelljoin)
-    remote = "/opt/sign/branding/#{version}"
-    Dir.mktmpdir('sign-branding') do |tmp|
-      directory = File.join(tmp, 'branding')
-      SignPackage.build(directory)
-      archive = File.join(tmp, 'branding.tar.gz')
-      raise 'Branding archive failed' unless system({ 'COPYFILE_DISABLE' => '1' }, 'tar', '--no-xattrs', '-czf', archive, '-C', directory, '.')
-      # Never overwrite files mounted by an existing running release.
-      raise 'Branding release already exists' unless system(*ssh, "test ! -e #{remote} && mkdir -p #{remote}")
-      begin
-        raise 'Branding upload failed' unless system('scp', '-q', archive, "root@#{host}:#{remote}/upload.tar.gz")
-        raise 'Branding extraction failed' unless system(*ssh, "tar -xzf #{remote}/upload.tar.gz -C #{remote} && rm #{remote}/upload.tar.gz")
-        SignCandidate.check(host, image, config, version)
-      rescue StandardError
-        warn "Candidate failed. Production is unchanged; inspect #{remote} before retrying."
-        raise
-      end
+    image = "#{release.fetch('image')}:#{version}"
+    # Logs in on the host and pulls the image. This does not touch the running app or the proxy.
+    pulled = Dir.chdir(root) do
+      system({ 'BUNDLE_GEMFILE' => File.join(__dir__, 'Gemfile') }, 'bundle', 'exec', 'kamal', 'build', 'pull', '--version', version)
     end
-    puts "PASS: prepared and tested branding release #{version}"
+    raise 'Image pull on host failed' unless pulled
+
+    id = "#{version[0, 12]}-#{Time.now.utc.strftime('%Y%m%d%H%M%S')}"
+    begin
+      SignCandidate.check_empty(host, image, config, id)
+      SignCandidate.check_production_copy(host, image, config, id, backup)
+    rescue StandardError
+      warn 'Candidate failed. Production is unchanged.'
+      raise
+    end
+    puts "PASS: candidate checks for #{image}"
   end
 end
 
-SignPrepare.run(ARGV.fetch(0)) if $PROGRAM_NAME == __FILE__
+SignPrepare.run(ARGV.fetch(0), ARGV.fetch(1)) if $PROGRAM_NAME == __FILE__

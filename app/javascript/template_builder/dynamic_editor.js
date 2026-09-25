@@ -94,13 +94,33 @@ img.ProseMirror-separator {
 }
 dynamic-variable {
   background-color: #fef3c7;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }`)
+
+const DROP_ATTRS = [
+  'srcdoc', 'xlink:href', 'srcset', 'action', 'formaction', 'poster',
+  'background', 'data', 'cite', 'ping', 'longdesc', 'manifest', 'profile'
+]
+
+const SAFE_URL_REGEXP = /^(?:https?:\/\/|data:image\/|blob:|mailto:|tel:|\{|#)/i
+
+function isSafeAttr (name, value) {
+  const lowerName = name.toLowerCase()
+
+  if (lowerName.startsWith('on') || DROP_ATTRS.includes(lowerName)) return false
+  if ((lowerName === 'href' || lowerName === 'src') && !SAFE_URL_REGEXP.test(value.trim())) return false
+
+  return true
+}
 
 function collectDomAttrs (dom) {
   const attrs = {}
 
   for (let i = 0; i < dom.attributes.length; i++) {
-    attrs[dom.attributes[i].name] = dom.attributes[i].value
+    const { name, value } = dom.attributes[i]
+
+    if (isSafeAttr(name, value)) attrs[name] = value
   }
 
   return { htmlAttrs: attrs }
@@ -136,11 +156,12 @@ function collectSpanDomAttrs (dom) {
   return result
 }
 
-function createBlockNode (name, tag, content) {
+function createBlockNode (name, tag, content, extra = {}) {
   return Node.create({
     name,
     group: 'block',
     content: content || 'block+',
+    ...extra,
     addAttributes () {
       return {
         htmlAttrs: { default: {} }
@@ -194,9 +215,9 @@ const CustomHeading = Node.create({
 })
 
 const SectionNode = createBlockNode('section', 'section')
-const ArticleNode = createBlockNode('article', 'article')
-const HeaderNode = createBlockNode('header', 'header')
-const FooterNode = createBlockNode('footer', 'footer')
+const ArticleNode = createBlockNode('article', 'article', null, { isolating: true })
+const HeaderNode = createBlockNode('header', 'header', null, { isolating: true })
+const FooterNode = createBlockNode('footer', 'footer', null, { isolating: true })
 const DivNode = createBlockNode('div', 'div')
 const BlockquoteNode = createBlockNode('blockquote', 'blockquote')
 const PreNode = createBlockNode('pre', 'pre')

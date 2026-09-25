@@ -230,7 +230,7 @@ export default {
     download () {
       this.isDownloading = true
 
-      fetch(this.baseUrl + `/submitters/${this.submitterSlug}/download`, {
+      fetch(this.baseUrl + `/s/${this.submitterSlug}/documents`, {
         method: 'GET',
         ...this.fetchOptions
       }).then(async (response) => {

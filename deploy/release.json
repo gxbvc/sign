@@ -1,8 +1,13 @@
 {
   "version": "3.2.6",
-  "image": "docuseal/docuseal",
-  "digest": "sha256:58c76f6d28561b7b8f0bb447941a7e2bac376300ea96871125f6c762e7e63385",
+  "image": "ghcr.io/gxbvc/sign",
   "source_commit": "47c090e1f1548be0d8ab58347c83363539e8b5b6",
   "ci_url": "https://github.com/docusealco/docuseal/actions/runs/35599424808",
-  "build_url": "https://github.com/docusealco/docuseal/actions/runs/35599424839"
+  "build_url": "https://github.com/docusealco/docuseal/actions/runs/35599424839",
+  "reference_upstream_image_digest": "sha256:58c76f6d28561b7b8f0bb447941a7e2bac376300ea96871125f6c762e7e63385",
+  "production_schema_version": "20260819091500",
+  "gxb_changed_upstream_files": [
+    ".dockerignore",
+    "Dockerfile"
+  ]
 }
