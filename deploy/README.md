@@ -2,9 +2,9 @@
 
 - URL: https://sign.gxb.vc
 - Server: DigitalOcean `gxb-nyc1`, `104.131.24.46`, NYC3.
-- Upstream: free DocuSeal 3.2.6, pulled by the digest in `release.json`. No source build.
-- Branding: `branding/` is a read-only presentation layer over the official image. Required DocuSeal attribution remains. No paid features are enabled.
-- Version: the deployment Git commit identifies the container and `/opt/sign/branding/COMMIT` directory.
+- Upstream: free DocuSeal 3.2.6 source (commit in `release.json`). This checkout is that source plus the GXB overlay, built as `ghcr.io/gxbvc/sign:<commit>` on the host's remote BuildKit.
+- Branding: `branding/` is baked into the image by the GXB block in `Dockerfile` (same paths the old read-only mounts used). Required DocuSeal attribution remains. No paid features are enabled.
+- Version: the deployment Git commit is the image tag and the container name. The app reports 3.2.6 from `ARG DOCUSEAL_VERSION`.
 - Routing: the existing shared kamal-proxy provides HTTPS. The app's port 3000 stays on the Docker network.
 - Data: `sign_storage:/data/docuseal` holds SQLite, attachments, and generated keys. Never remove it.
 
@@ -15,10 +15,8 @@ BUNDLE_GEMFILE=deploy/Gemfile bundle install
 ruby deploy/check.rb
 ruby -c bin/deploy-sign
 git diff --check
-# Use a unique candidate ID. This never mounts production storage.
-ruby deploy/prepare.rb check-YYYYMMDD-HHMMSS
-# Commit changes on master, then:
-bin/deploy-sign
+# Commit changes on master. Take a volume backup to /opt/sign/backups/ first when data or migrations change.
+bin/deploy-sign 20260925-163905-sign_storage.tar.gz
 BUNDLE_GEMFILE=deploy/Gemfile bundle exec kamal app version
 BUNDLE_GEMFILE=deploy/Gemfile bundle exec kamal app logs -n 80
 ruby deploy/verify.rb
@@ -26,9 +24,11 @@ ruby deploy/verify.rb
 
 `check.rb` verifies successful upstream RSpec, Ruby/ERB/JavaScript lint, security scan, and Docker build for the exact release commit. It runs Ruby lint for the deployment layer and local tests for metadata, document title suffixes, private previews, attribution, the manifest, and icon dimensions. The older checkout's Rails suite is not the deployed suite.
 
-`prepare.rb` downloads corresponding upstream source, packages the branding layer, uploads it to a new immutable directory, and starts a disposable container. The candidate has no public port, production volume, or SMTP credentials. Real Rails checks cover the landing page, metadata, attribution, source link, manifest, setup lock, and unsent email headers. HTTP checks confirm every public asset. The candidate is stopped after the checks, including on failure. Failed candidate directories are retained for inspection.
+`check.rb` also proves that the tree outside the GXB overlay equals the upstream commit, except the files listed in `release.json` `gxb_changed_upstream_files`.
 
-`bin/deploy-sign` requires committed deployment files. It repeats checks and candidate tests, tags the same official image with the deployment commit, and uses `kamal app boot`. It does not run a registry login or change the shared proxy. Registry fields in `config/deploy.yml` are unused placeholders.
+`prepare.rb COMMIT BACKUP` pulls our image on the host and runs two disposable candidates. Neither has a public port, the production volume, or SMTP credentials, and each uses its own `--internal` network and temp volume that are removed after the checks, including on failure. Candidate A uses an empty volume: landing page, metadata, attribution, source link, manifest, setup lock after a throwaway account, unsent email headers, editor branding, and every public asset. Candidate B restores the named backup without `dump.rdb` (so no queued jobs run) and proves the schema is unchanged by boot, no migrations are pending, Bailey v6 is completed, and `/setup` redirects.
+
+`bin/deploy-sign BACKUP` requires a clean tree. It runs the checks and the shared-proxy precheck, writes the source archive, logs in to GHCR with `gh auth token`, builds and pushes, runs both candidates, then `kamal redeploy --skip-push`. That pulls and boots the app. It does not boot or change the shared proxy and never runs `app remove`.
 
 Release directories are not overwritten. If activation fails after preparation, inspect the failure and existing release before retrying. Keep directories referenced by running or rollback containers. Remove only unused candidate directories after inspection.
 
@@ -44,7 +44,7 @@ The Lucide Signature SVG is white on a black circle. Its license is in `branding
 html-to-image deploy/branding/public/og-image.html --scale 1
 ```
 
-Every deployment publishes `/gxb-sign/source.tar.gz`, linked from the retained DocuSeal footer. It contains the pinned upstream source and this deployment layer, including build/deployment instructions. No credentials, user data, or documents are included. To reproduce the presentation layer, use the pinned upstream image with the mounts in `config/deploy.yml`; the image itself is unchanged.
+Every deployment publishes `/gxb-sign/source.tar.gz`, linked from the retained DocuSeal footer. It is `git archive` of the deployed commit (`deploy/source_archive.rb`), without `plans/`: the full DocuSeal source, the GXB changes, and these build instructions. No credentials, user data, or documents are included. `docker build .` after writing the archive reproduces the image.
 
 ## Data, mail, and recovery
 
@@ -64,4 +64,4 @@ Christian approved the existing queued invitation to `ricky@gxb.vc` on 2026-09-2
 
 Imported agreements remain drafts. Do not send signature requests or change contract terms without approval. Automated off-server backups must be configured before using the app for executed agreements.
 
-Before upgrading upstream, back up the full volume and test recovery. Select a release whose required upstream CI passes, update `release.json`, and repeat candidate checks. Do not roll back across incompatible database migrations. A branding-only rollback to an earlier branded commit needs its original image tag and `SIGN_DEPLOY_VERSION` mount directory. Never run `kamal app remove` or remove the persistent volume during redeployment.
+Before upgrading upstream, back up the full volume and test recovery. Select a release whose required upstream CI passes, update `release.json`, and repeat candidate checks. Do not roll back across incompatible database migrations. Containers from before 2026-09-25 used the official image with `/opt/sign/branding/<commit>` host mounts; keep those directories until a rollback to them is no longer needed. Never run `kamal app remove` or remove the persistent volume during redeployment.

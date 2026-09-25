@@ -4,22 +4,22 @@ Free DocuSeal at https://sign.gxb.vc on DigitalOcean `gxb-nyc1` (`104.131.24.46`
 
 ## Deployment
 
-This checkout contains an older upstream source tree. Production pulls the **official image by digest**, not a build of this tree, and mounts the presentation files in `deploy/branding` read-only. `deploy/release.json` pins the upstream release, digest, source commit, and CI runs. The container version and branding directory use the deployment Git commit. Do not mix the local source version with the production version.
+This checkout is DocuSeal 3.2.6 source (upstream commit `47c090e1f1548be0d8ab58347c83363539e8b5b6`) plus the GXB overlay. Production runs a **build of this tree**: `ghcr.io/gxbvc/sign:<git sha>`. Branding (`deploy/branding`) and the public source archive are baked into the image by the GXB block in `Dockerfile`. `deploy/release.json` pins the upstream version, commit, CI runs, and the list of upstream files GXB changed on purpose.
 
 - Deployment tooling: `BUNDLE_GEMFILE=deploy/Gemfile bundle install`.
-- Checks: `ruby deploy/check.rb`, `ruby -c bin/deploy-sign`, `git diff --check`. Run `ruby deploy/prepare.rb check-UNIQUE-ID` before committing to test the candidate against the actual image.
-- The release check requires successful upstream RSpec, RuboCop, ERB lint, ESLint, Brakeman, and image build for the exact release commit. It also tests the branding templates and image dimensions. The disposable candidate tests real Rails rendering and static assets without the production volume. The older source tree's suite is not the deployed suite.
-- Commit deployment changes on `master`, then `bin/deploy-sign`.
+- Checks: `ruby deploy/check.rb`, `ruby -c bin/deploy-sign`, `git diff --check`. `check.rb` also proves the tree outside the overlay equals the upstream commit, except the allowlisted files.
+- Deploy: commit on `master`, then `bin/deploy-sign BACKUP.tar.gz` (a tarball in `/opt/sign/backups/` on the host). It builds on the host's remote BuildKit, pushes to GHCR, runs candidate A (empty volume) and candidate B (copy of the backup on an internal network, no `dump.rdb`, no SMTP), then `kamal redeploy --skip-push`. Take a fresh backup first when the change touches data or migrations.
 - Logs: `BUNDLE_GEMFILE=deploy/Gemfile bundle exec kamal app logs -n 80`.
-- Production runner: `BUNDLE_GEMFILE=deploy/Gemfile kamal-cli runner FILE.rb`. The container starts in `/app`; `WORKDIR=/data/docuseal` still controls persistent data.
+- Production runner: `BUNDLE_GEMFILE=deploy/Gemfile kamal-cli runner FILE.rb`. The container starts in `/app`; `WORKDIR=/data/docuseal` still controls persistent data. Every Rails boot, including a runner, runs `config/initializers/migrate.rb` (pending migrations) unless `RUN_MIGRATIONS=false`.
 
-The public image is pulled by digest over SSH, then activated through `kamal app boot`. This avoids Kamal's registry-login requirement for `deploy -P`. The registry values in `config/deploy.yml` are deliberately unused placeholders, not credentials. Do not run a source build, push to upstream, or run a registry login with these values. The existing shared kamal-proxy must already be running. Do not restart or replace it for this app.
+Registry login uses `gh auth token` (`KAMAL_REGISTRY_PASSWORD` in `.kamal/secrets`). Never print it. Do not push to `origin` (`docusealco/docuseal`, upstream). The existing shared kamal-proxy must already be running. Do not restart or replace it. Never run `kamal app remove`.
 
 ## Data and safety
 
 - Persistent Docker volume: `sign_storage`, mounted at `/data/docuseal`. It holds SQLite, uploaded documents, and generated signing/encryption secrets. Never delete it or print its secrets.
-- Initialize the first admin privately, before publishing the proxy route. The public setup route must no longer accept account creation.
-- The free license requires original DocuSeal attribution. Do not remove it or enable paid features without approval.
+- Backups: dated volume tarballs in `/opt/sign/backups/` on the host and `~/backups/sign/` on the laptop. Plan 05 has the record. Litestream (plan 03) is not live.
+- `/setup` must stay locked. Public signing links (`/s`, `/d`, `/e`) must open with no login.
+- The free license requires original DocuSeal attribution. Do not remove it or enable paid features without approval. `/gxb-sign/source.tar.gz` is the `git archive` of the deployed commit (without `plans/`) and must stay public.
 - Outbound mail uses Mailgun (`smtp.mailgun.org:587`, required STARTTLS and certificate verification). The sender is `GXB Sign <sign@gxb.vc>`. `.kamal/secrets` loads credentials from protected `~/.config/sign/smtp.json`; never print or commit its values.
 - Christian authorized the existing queued invitation to `ricky@gxb.vc` on 2026-09-22. Do not send other invitations without approval.
 - Imported agreements are drafts for review. Do not alter contract terms or send signature requests without approval.
