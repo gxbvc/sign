@@ -18,7 +18,10 @@ class SubmitFormController < ApplicationController
     submission = @submitter.submission
 
     return render :email_2fa unless Submitters::AuthorizedForForm.pass_email_2fa?(@submitter, request)
-    return redirect_to submit_form_completed_path(@submitter.slug) if @submitter.completed_at?
+
+    if @submitter.completed_at? || submission.completed_at?
+      return redirect_to submit_form_completed_path(@submitter.slug)
+    end
 
     @form_configs = Submitters::FormConfigs.call(@submitter, CONFIG_KEYS)
 
@@ -71,6 +74,12 @@ class SubmitFormController < ApplicationController
                     status: :unprocessable_content
     end
 
+    if @submitter.viewer?
+      Rollbar.warning("Submit viewer: #{@submitter.id}") if defined?(Rollbar)
+
+      return render json: { error: I18n.t('form_is_view_only') }, status: :unprocessable_content
+    end
+
     Submitters::SubmitValues.call(@submitter, params, request)
 
     head :ok
@@ -98,6 +107,8 @@ class SubmitFormController < ApplicationController
     submitter_version = SubmitterVersion.find_by!(slug: params[:slug] || params[:submit_form_slug])
 
     @submitter = submitter_version.submitter
+
+    maybe_render_locked_page
   end
 
   private

@@ -35,7 +35,7 @@ function loadTiptap () {
   }))
 }
 
-class LinkTooltip {
+export class LinkTooltip {
   constructor (container, editor, templateEl) {
     this.container = container
     this.editor = editor
@@ -150,7 +150,7 @@ export default actionable(targetable(class extends HTMLElement {
 
     const buildDecorations = (doc) => {
       const decorations = []
-      const regex = /\{\{?[a-zA-Z0-9_.-]+\}\}?/g
+      const regex = /\{\{?[^{}\n]+\}\}?/g
 
       doc.descendants((node, pos) => {
         if (!node.isText) return

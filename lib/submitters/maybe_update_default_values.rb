@@ -5,14 +5,9 @@ module Submitters
     module_function
 
     def call(submitter, current_user)
-      user =
-        if current_user && current_user.email == submitter.email
-          current_user
-        else
-          submitter.account.users.find_by(email: submitter.email)
-        end
+      return if current_user.blank? || current_user.email != submitter.email
 
-      return if user.blank?
+      user = current_user
 
       fields = submitter.submission.template_fields || submitter.submission.template.fields
 

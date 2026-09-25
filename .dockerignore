@@ -29,5 +29,15 @@
 /docuseal
 .DS_Store
 .env
-plans/
-docs/
+
+# GXB Sign: keep secrets, plans, and deployment tooling out of the build context.
+.env*
+/.kamal
+/plans
+/deploy/*
+!/deploy/branding
+!/deploy/candidate_test.rb
+!/deploy/candidate_data_test.rb
+!/deploy/build
+/deploy/build/*
+!/deploy/build/source.tar.gz

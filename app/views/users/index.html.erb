@@ -2,7 +2,7 @@
   <%= render 'shared/settings_nav' %>
   <div class="md:flex-grow">
     <div class="flex flex-col md:flex-row md:flex-wrap gap-2 md:justify-between md:items-end mb-4 min-h-12">
-      <h1 class="text-4xl font-bold">
+      <h1 class="text-3xl md:text-4xl font-bold">
         <% if params[:status] == 'archived' %>
           <%= t('archived_users') %>
         <% elsif params[:status] == 'integration' %>
@@ -24,7 +24,7 @@
               <% end %>
             <% end %>
           <% else %>
-            <div class="tooltip" data-tip="<%= t('contact_your_administrator_to_add_new_users') %>">
+            <div class="md:tooltip" data-tip="<%= t('contact_your_administrator_to_add_new_users') %>">
               <%= link_to '#', class: 'btn btn-primary btn-md gap-2 w-full md:w-fit btn-disabled', data: { turbo_frame: 'modal' } do %>
                 <%= svg_icon('plus', class: 'w-6 h-6') %>
                 <span><%= t('new_user') %></span>
@@ -56,7 +56,7 @@
         </thead>
         <tbody>
           <% @users.each do |user| %>
-            <tr scope="row">
+            <tr>
               <td>
                 <%= user.full_name %>
               </td>
