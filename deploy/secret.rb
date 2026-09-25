@@ -3,12 +3,14 @@
 # Called only by Kamal's dotenv command substitution in .kamal/secrets. Never log the result.
 #   ruby deploy/secret.rb smtp SMTP_PASSWORD
 #   ruby deploy/secret.rb auth AUTH_GXB_CLIENT_SECRET
+#   ruby deploy/secret.rb chat CHAT_API_KEY
 # Each source is a JSON object in a file owned by the deploying user with mode 0600.
 require 'json'
 
 SOURCES = {
   'smtp' => { env: 'SIGN_SMTP_FILE', path: '~/.config/sign/smtp.json', keys: %w[SMTP_USERNAME SMTP_PASSWORD] },
-  'auth' => { env: 'SIGN_AUTH_FILE', path: '~/.config/sign/auth.json', keys: %w[AUTH_GXB_CLIENT_SECRET] }
+  'auth' => { env: 'SIGN_AUTH_FILE', path: '~/.config/sign/auth.json', keys: %w[AUTH_GXB_CLIENT_SECRET] },
+  'chat' => { env: 'SIGN_CHAT_FILE', path: '~/.config/sign/chat.json', keys: %w[CHAT_API_KEY] }
 }.freeze
 
 begin
