@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Run only in a disposable candidate on a temp copy of production data (deploy/candidate.rb mode B).
-# Prints ids, names, statuses, and counts only. Never secrets or document contents.
+# Prints ids, names, statuses, path shapes, and counts only. Never secrets, slugs, or document contents.
 abort 'Not a disposable data-copy check' unless ENV['SIGN_DATA_COPY_CHECK'] == 'true'
 abort 'Migrations must be disabled for this check' unless ENV['RUN_MIGRATIONS'] == 'false'
 
@@ -9,31 +9,57 @@ BAILEY_TEMPLATE_ID = 2
 BAILEY_NAME = 'GXB-Bailey Advisory Agreement v6 (2026-09-23)'
 EXPECTED_SCHEMA = '20260819091500'
 
+def applied_versions
+  ActiveRecord::Base.connection.select_values('SELECT version FROM schema_migrations').map(&:to_s)
+end
+
 def schema_version
-  ActiveRecord::Base.connection.select_value('SELECT MAX(version) FROM schema_migrations').to_s
+  applied_versions.max.to_s
 end
 
 def pending_migrations
   ActiveRecord::Base.connection_pool.migration_context.open.pending_migrations.map(&:version)
 end
 
+def new_session
+  ActionDispatch::Integration::Session.new(Rails.application).tap { |session| session.host!('localhost') }
+end
+
+# Replaces the slug with :slug so the output shows only the shape.
+def path_shape(location, slug)
+  URI(location.to_s).path.sub(slug, ':slug')
+end
+
 phase = ARGV.fetch(0)
+gxb_migrations = ARGV.fetch(1).split(',')
+
 case phase
 when 'before'
   workdir = ENV.fetch('WORKDIR')
   raise 'dump.rdb present; queued jobs could run' if File.exist?(File.join(workdir, 'dump.rdb'))
 
+  upstream = applied_versions - gxb_migrations
+  raise "Unexpected upstream schema: #{upstream.max}" unless upstream.max == EXPECTED_SCHEMA
+
   puts "INFO: schema_version=#{schema_version}"
+  puts "INFO: upstream_migrations=#{upstream.size}"
+  puts "INFO: gxb_migrations_applied=#{(applied_versions & gxb_migrations).join(',')}"
   puts "INFO: pending_migrations=#{pending_migrations.size}"
   puts "INFO: users=#{User.count} templates=#{Template.count} submissions=#{Submission.count} submitters=#{Submitter.count}"
   puts 'PASS: pre-boot read (no dump.rdb)'
 when 'after'
-  before = ARGV.fetch(1)
-  after = schema_version
+  before = ARGV.fetch(2)
+  upstream_before = Integer(ARGV.fetch(3))
+  versions = applied_versions
+  upstream = versions - gxb_migrations
   pending = pending_migrations
-  puts "INFO: schema_version before=#{before} after=#{after} pending=#{pending.size}"
-  raise 'Schema changed by boot' unless before == after && after == EXPECTED_SCHEMA
+  puts "INFO: schema_version before=#{before} after=#{schema_version} pending=#{pending.size}"
+  raise 'Upstream migrations changed by boot' unless upstream.size == upstream_before && upstream.max == EXPECTED_SCHEMA
+  raise 'GXB migrations not all applied' unless (gxb_migrations - versions).empty?
   raise "Pending migrations: #{pending.join(',')}" unless pending.empty?
+  raise 'Missing users.auth_uid' unless User.column_names.include?('auth_uid')
+
+  puts "PASS: boot applied only GXB migrations #{gxb_migrations.join(',')}"
 
   template = Template.find(BAILEY_TEMPLATE_ID)
   puts "INFO: template id=#{template.id} name=#{template.name.inspect} archived=#{template.archived_at.present?}"
@@ -46,8 +72,7 @@ when 'after'
   raise "Expected 2 Bailey submitters, got #{submitters.size}" unless submitters.size == 2
   raise 'Bailey submitters not all completed' unless submitters.all? { |s| s.completed_at.present? }
 
-  session = ActionDispatch::Integration::Session.new(Rails.application)
-  session.host!('localhost')
+  session = new_session
   session.get('/setup')
   raise "Setup open on production copy: #{session.response.status}" unless session.response.redirect?
 
@@ -59,7 +84,37 @@ when 'after'
     raise 'Missing source' unless html.at_css('a[href="/gxb-sign/source.tar.gz"]')
   end
   puts "INFO: landing status=#{session.response.status}"
-  puts 'PASS: schema unchanged, no pending migrations, Bailey v6 completed, /setup locked'
+
+  # Signers never need a login: each Bailey link goes to its completed page, with no cookie.
+  submitters.each do |submitter|
+    signer = new_session
+    signer.get("/s/#{submitter.slug}")
+    first = [signer.response.status, path_shape(signer.response.location, submitter.slug)]
+    raise "Signing link redirected to auth: #{first.inspect}" if signer.response.location.to_s.include?('auth.gxb.vc')
+    raise "Signing link wanted a login: #{first.inspect}" if first.last.start_with?('/sign_in')
+    raise "Signing link did not go to completed: #{first.inspect}" unless first == [302, '/s/:slug/completed']
+
+    signer.get("/s/#{submitter.slug}/completed")
+    raise "Completed page status #{signer.response.status}" unless signer.response.status == 200
+
+    puts "INFO: submitter id=#{submitter.id} /s/:slug #{first.first} -> #{first.last} 200"
+  end
+
+  # Staff pages go to GXB (never followed; no egress). The password form stays reachable.
+  staff = new_session
+  staff.get('/templates')
+  authorize = URI(staff.response.location.to_s)
+  query = Rack::Utils.parse_query(authorize.query)
+  raise "Staff page status #{staff.response.status}" unless staff.response.status == 302
+  raise 'Staff page not sent to GXB' unless "#{authorize.host}#{authorize.path}" == 'auth.gxb.vc/oauth/authorize'
+  raise 'Wrong GXB client or callback' unless query['client_id'] == 'sign' &&
+                                              query['redirect_uri'] == 'http://localhost/auth/callback'
+  staff.get('/sign_in?password=1')
+  raise "Password form status #{staff.response.status}" unless staff.response.status == 200
+
+  puts 'PASS: staff page -> auth.gxb.vc/oauth/authorize (client_id=sign), /sign_in?password=1 200'
+
+  puts 'PASS: only GXB migrations applied, Bailey v6 completed, signing links public, /setup locked'
 else
   abort "Unknown phase #{phase}"
 end

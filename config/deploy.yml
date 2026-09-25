@@ -42,9 +42,11 @@ env:
     SMTP_SSL_VERIFY: "true"
     SMTP_OPEN_TIMEOUT: "15"
     SMTP_READ_TIMEOUT: "25"
+    AUTH_GXB_CLIENT_ID: sign
   secret:
     - SMTP_USERNAME
     - SMTP_PASSWORD
+    - AUTH_GXB_CLIENT_SECRET
 
 volumes:
   - sign_storage:/data/docuseal

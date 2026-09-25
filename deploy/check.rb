@@ -30,11 +30,14 @@ check("remote amd64 builder from this tree", config.dig("builder", "arch") == "a
 check("mail sender", config.dig("env", "clear", "SMTP_FROM") == "GXB Sign <sign@gxb.vc>")
 check("Mailgun SMTP", config.dig("env", "clear", "SMTP_ADDRESS") == "smtp.mailgun.org" && config.dig("env", "clear", "SMTP_PORT") == "587")
 check("verified SMTP TLS", config.dig("env", "clear", "SMTP_ENABLE_STARTTLS") == "true" && config.dig("env", "clear", "SMTP_SSL_VERIFY") == "true")
-check("protected SMTP credentials", config.dig("env", "secret") == %w[SMTP_USERNAME SMTP_PASSWORD] && (config.dig("env", "clear").keys & %w[SMTP_USERNAME SMTP_PASSWORD]).empty?)
+secret_env = %w[SMTP_USERNAME SMTP_PASSWORD AUTH_GXB_CLIENT_SECRET]
+check("protected SMTP and GXB auth credentials", config.dig("env", "secret") == secret_env && (config.dig("env", "clear").keys & secret_env).empty?)
+check("GXB auth client id", config.dig("env", "clear", "AUTH_GXB_CLIENT_ID") == "sign")
+check("GXB auth secret source", File.read(File.join(ROOT, ".kamal/secrets")).include?("AUTH_GXB_CLIENT_SECRET=$(ruby deploy/secret.rb auth AUTH_GXB_CLIENT_SECRET)"))
 check("branding tests", system(RbConfig.ruby, File.join(__dir__, "test_branding.rb")))
 ruby_files = Dir[File.join(__dir__, "*.rb")] + [File.join(__dir__, "branding/initializer.rb"), File.join(ROOT, "bin/deploy-sign")]
 check("deployment Ruby lint", system({ "BUNDLE_GEMFILE" => File.join(__dir__, "Gemfile") }, "bundle", "exec", "rubocop", "--config", File.join(__dir__, "rubocop.yml"), *ruby_files))
-check("SMTP secret loader tests", system({ "BUNDLE_GEMFILE" => File.join(__dir__, "Gemfile") }, "bundle", "exec", "ruby", File.join(__dir__, "test_smtp_secrets.rb")))
+check("secret loader tests", system({ "BUNDLE_GEMFILE" => File.join(__dir__, "Gemfile") }, "bundle", "exec", "ruby", File.join(__dir__, "test_secrets.rb")))
 check("numeric release", release.fetch("version").match?(/\A\d+\.\d+\.\d+\z/))
 check("copyright retained", File.read(File.join(ROOT, "LICENSE_ADDITIONAL_TERMS")).include?("retain the original DocuSeal attribution"))
 
@@ -67,8 +70,21 @@ changed = Dir.mktmpdir("sign-tree-proof") do |tmp|
   abort "FAIL: tree proof diff" unless status.success?
   out.lines.map(&:strip).sort
 end
-allowed = release.fetch("gxb_changed_upstream_files").sort
+# Upstream files GXB changed on purpose, and files GXB added (SSO code, its migration, its specs).
+modified = release.fetch("gxb_changed_upstream_files")
+added = release.fetch("gxb_added_files")
+in_upstream = ->(path) { system("git", "-C", ROOT, "cat-file", "-e", "#{commit}:#{path}", err: File::NULL) }
+check("allowlisted changed files exist upstream", modified.all?(&in_upstream))
+check("allowlisted GXB files are new", added.none?(&in_upstream) && (modified & added).empty?)
+allowed = (modified + added).sort
 check("tree matches upstream #{commit[0, 12]} outside the overlay (changed: #{changed.join(', ')})", changed == allowed)
+
+# Each GXB migration has an allowlisted file, is newer than production today, and schema.rb is at the newest.
+migrations = release.fetch("gxb_migrations")
+migration_versions = added.grep(%r{\Adb/migrate/}).map { |path| File.basename(path)[/\A\d+/] }
+check("GXB migrations listed", migration_versions.sort == migrations.sort && migrations.all? { |version| version > release.fetch("production_schema_version") })
+schema_version = File.read(File.join(ROOT, "db/schema.rb"))[/define\(version: ([\d_]+)\)/, 1].to_s.delete("_")
+check("schema.rb at the newest GXB migration", schema_version == (migrations.max || release.fetch("production_schema_version")))
 
 stdout, status = Open3.capture2("gh", "api", "repos/docusealco/docuseal/commits/#{commit}/check-runs")
 check("release CI evidence fetched", status.success?)

@@ -23,6 +23,21 @@ manifest = JSON.parse(session.response.body)
 raise 'Wrong manifest' unless manifest['name'] == 'GXB Sign' && manifest['icons'].size == 3
 session.get('/setup')
 raise 'Setup still open' unless session.response.redirect?
+# GXB SSO with the fake candidate secret. The redirect is never followed (no egress).
+staff = ActionDispatch::Integration::Session.new(Rails.application)
+staff.host!('localhost')
+staff.get('/templates')
+authorize = URI(staff.response.location.to_s)
+query = Rack::Utils.parse_query(authorize.query)
+raise "Staff page status #{staff.response.status}" unless staff.response.status == 302
+raise 'Staff page not sent to GXB' unless "#{authorize.host}#{authorize.path}" == 'auth.gxb.vc/oauth/authorize'
+raise 'Wrong GXB client or callback' unless query['client_id'] == 'sign' && query['redirect_uri'] == 'http://localhost/auth/callback'
+staff.get('/sign_in')
+raise 'Sign-in not sent to GXB' unless staff.response.location.to_s.start_with?('https://auth.gxb.vc/oauth/authorize?')
+staff.get('/sign_in?password=1')
+raise "Password form status #{staff.response.status}" unless staff.response.status == 200
+staff.get('/auth/callback?state=wrong&code=wrong')
+raise 'Bad callback not refused' unless staff.response.location.to_s.end_with?('/sign_in?password=1')
 message = Mail.new(from: 'Old name <old@example.invalid>', to: 'test@example.invalid', subject: 'Header check', body: 'Not sent')
 ActionMailerConfigsInterceptor.delivering_email(message)
 raise 'Wrong From address' unless message.from == ['sign@gxb.vc']
@@ -37,4 +52,5 @@ editor = Nokogiri::HTML(session.response.body)
 raise 'Missing editor' unless editor.at_css('template-builder')
 raise 'Missing editor branding stylesheet' unless editor.at_css('link[href="/gxb-sign/builder-branding-v1.css"]')
 Warden.test_reset!
-puts 'PASS: Rails landing, metadata, attribution, source, manifest, setup lock, unsent mail headers, and authenticated editor branding'
+puts 'PASS: Rails landing, metadata, attribution, source, manifest, setup lock, GXB SSO redirect, password form, ' \
+     'unsent mail headers, and authenticated editor branding'

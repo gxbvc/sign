@@ -8,6 +8,20 @@
   "production_schema_version": "20260819091500",
   "gxb_changed_upstream_files": [
     ".dockerignore",
-    "Dockerfile"
+    "Dockerfile",
+    "db/schema.rb"
+  ],
+  "gxb_added_files": [
+    "app/controllers/auth_callbacks_controller.rb",
+    "app/controllers/concerns/gxb_sso_sign_in.rb",
+    "app/models/concerns/gxb_sso_user.rb",
+    "config/initializers/auth_gxb.rb",
+    "db/migrate/20260925190000_add_auth_uid_to_users.rb",
+    "lib/gxb_sso.rb",
+    "spec/models/gxb_sso_user_spec.rb",
+    "spec/requests/gxb_sso_spec.rb"
+  ],
+  "gxb_migrations": [
+    "20260925190000"
   ]
 }

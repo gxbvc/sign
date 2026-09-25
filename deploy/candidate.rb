@@ -2,13 +2,17 @@
 
 require 'shellwords'
 require 'open3'
+require 'json'
 
 # Disposable candidates of our built image on the app host.
-# Never mount sign_storage, never publish a port, never pass SMTP credentials.
+# Never mount sign_storage, never publish a port, never pass SMTP credentials or the real GXB auth secret.
 # The container, its --internal network, and its temp volume are removed after the checks, including on failure.
 module SignCandidate
   BACKUP_DIR = '/opt/sign/backups'
   BAILEY_SCHEMA = '20260819091500'
+  GXB_MIGRATIONS = JSON.parse(File.read(File.join(__dir__, 'release.json'))).fetch('gxb_migrations').freeze
+  # Turns on the GXB SSO redirect so the candidates can check it. Candidates have no egress and never follow it.
+  FAKE_AUTH_SECRET = 'candidate-fake-auth-secret'
   ASSETS = %w[favicon.svg favicon-32x32.png apple-touch-icon.png icon-192.png icon-512.png og-image.png
               builder-branding-v1.css source.tar.gz].freeze
 
@@ -52,17 +56,20 @@ module SignCandidate
              '-v', "#{names[:volume]}:/data/docuseal", image, 'sh', '-c', restore)
       puts 'PASS: restored backup copy into a temp volume without dump.rdb'
       # Read the schema before any boot. RUN_MIGRATIONS=false keeps this read-only.
+      gxb = GXB_MIGRATIONS.join(',')
       output, = remote(host, 'docker', 'run', '--rm', '--network', 'none', '--workdir', '/app',
                        '-e', 'RUN_MIGRATIONS=false', '-e', 'SIGN_DATA_COPY_CHECK=true',
                        '-v', "#{names[:volume]}:/data/docuseal", image,
-                       'bundle', 'exec', 'rails', 'runner', '/opt/gxb-sign/candidate_data_test.rb', 'before')
+                       'bundle', 'exec', 'rails', 'runner', '/opt/gxb-sign/candidate_data_test.rb', 'before', gxb)
       puts output.lines.grep(/\A(PASS|INFO):/).join
       before = output[/^INFO: schema_version=(\d+)$/, 1] or raise 'Schema version before boot not found'
-      raise "Unexpected schema before boot: #{before}" unless before == BAILEY_SCHEMA
+      upstream = output[/^INFO: upstream_migrations=(\d+)$/, 1] or raise 'Upstream migration count not found'
+      # Production today is BAILEY_SCHEMA. After this release ships, a backup is at a GXB migration.
+      raise "Unexpected schema before boot: #{before}" unless [BAILEY_SCHEMA, *GXB_MIGRATIONS].include?(before)
 
       start(host, image, config, names, 'SIGN_DATA_COPY_CHECK' => 'true')
       wait_healthy(host, names[:container])
-      run_test(host, names[:container], '/opt/gxb-sign/candidate_data_test.rb', 'after', before)
+      run_test(host, names[:container], '/opt/gxb-sign/candidate_data_test.rb', 'after', gxb, before, upstream)
       check_assets(host, names[:container])
       puts 'PASS: candidate B (production data copy)'
     end
@@ -92,8 +99,10 @@ module SignCandidate
   end
 
   def start(host, image, config, names, extra_env)
+    clear = config.fetch('env').fetch('clear')
     env = { 'APP_URL' => 'http://localhost', 'SMTP_ADDRESS' => '127.0.0.1', 'SMTP_PORT' => '1',
-            'SMTP_FROM' => config.fetch('env').fetch('clear').fetch('SMTP_FROM') }.merge(extra_env)
+            'SMTP_FROM' => clear.fetch('SMTP_FROM'), 'AUTH_GXB_CLIENT_ID' => clear.fetch('AUTH_GXB_CLIENT_ID'),
+            'AUTH_GXB_CLIENT_SECRET' => FAKE_AUTH_SECRET }.merge(extra_env)
     command = ['docker', 'run', '--detach', '--name', names[:container], '--network', names[:network],
                '--memory', '1g', '--init', '--workdir', '/app', '-v', "#{names[:volume]}:/data/docuseal"]
     env.each { |key, value| command.push('-e', "#{key}=#{value}") }

@@ -21,6 +21,7 @@ Registry login uses `gh auth token` (`KAMAL_REGISTRY_PASSWORD` in `.kamal/secret
 - `/setup` must stay locked. Public signing links (`/s`, `/d`, `/e`) must open with no login.
 - The free license requires original DocuSeal attribution. Do not remove it or enable paid features without approval. `/gxb-sign/source.tar.gz` is the `git archive` of the deployed commit (without `plans/`) and must stay public.
 - Outbound mail uses Mailgun (`smtp.mailgun.org:587`, required STARTTLS and certificate verification). The sender is `GXB Sign <sign@gxb.vc>`. `.kamal/secrets` loads credentials from protected `~/.config/sign/smtp.json`; never print or commit its values.
+- Staff sign in with GXB (auth.gxb.vc, client `sign`). The client secret loads from protected `~/.config/sign/auth.json`; never print or commit it. `/sign_in?password=1` is the password fallback. See `deploy/README.md`.
 - Christian authorized the existing queued invitation to `ricky@gxb.vc` on 2026-09-22. Do not send other invitations without approval.
 - Imported agreements are drafts for review. Do not alter contract terms or send signature requests without approval.
 - `plans/01-*` through `03-*` are old proposals, not proof of the current configuration. This file and `deploy/README.md` describe the actual deployment.
