@@ -13,12 +13,18 @@
   ],
   "gxb_added_files": [
     "app/controllers/auth_callbacks_controller.rb",
+    "app/controllers/chat_api/tools_controller.rb",
+    "app/controllers/concerns/chat_api_authenticatable.rb",
     "app/controllers/concerns/gxb_sso_sign_in.rb",
     "app/models/concerns/gxb_sso_user.rb",
     "config/initializers/auth_gxb.rb",
+    "config/initializers/chat_api.rb",
     "db/migrate/20260925190000_add_auth_uid_to_users.rb",
+    "lib/gxb_chat_tools.rb",
+    "lib/gxb_safe_download.rb",
     "lib/gxb_sso.rb",
     "spec/models/gxb_sso_user_spec.rb",
+    "spec/requests/chat_api_tools_spec.rb",
     "spec/requests/gxb_sso_spec.rb"
   ],
   "gxb_migrations": [

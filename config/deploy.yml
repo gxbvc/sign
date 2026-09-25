@@ -47,6 +47,7 @@ env:
     - SMTP_USERNAME
     - SMTP_PASSWORD
     - AUTH_GXB_CLIENT_SECRET
+    - CHAT_API_KEY
 
 volumes:
   - sign_storage:/data/docuseal

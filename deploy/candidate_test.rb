@@ -38,6 +38,24 @@ staff.get('/sign_in?password=1')
 raise "Password form status #{staff.response.status}" unless staff.response.status == 200
 staff.get('/auth/callback?state=wrong&code=wrong')
 raise 'Bad callback not refused' unless staff.response.location.to_s.end_with?('/sign_in?password=1')
+# Chat host API with the fake candidate key. Lists tools only; never calls a tool.
+chat_key = ENV.fetch('CHAT_API_KEY')
+chat = ActionDispatch::Integration::Session.new(Rails.application)
+chat.host!('localhost')
+chat.get('/chat_api/tools', headers: { 'X-Auth-Email' => user.email })
+raise "Chat API without a key: #{chat.response.status}" unless chat.response.status == 401
+chat.get('/chat_api/tools', headers: { 'Authorization' => "Bearer #{chat_key}" })
+raise "Chat API without an identity: #{chat.response.status}" unless chat.response.status == 403
+chat.get('/chat_api/tools', headers: { 'Authorization' => "Bearer #{chat_key}", 'X-Auth-Email' => user.email })
+raise "Chat API tools status #{chat.response.status}" unless chat.response.status == 200
+raise 'Chat API set a cookie' if chat.response.headers['Set-Cookie'].present?
+chat_tools = JSON.parse(chat.response.body).fetch('tools').index_by { |tool| tool.fetch('name') }
+raise "Chat API tools #{chat_tools.keys.sort}" unless chat_tools.keys.sort ==
+                                                      %w[create_template load_template search_documents
+                                                         search_templates send_documents]
+raise 'send_documents does not require confirmation' unless chat_tools['send_documents']['requires_confirmation'] == true
+raise 'send_documents approval is not bound' unless chat_tools['send_documents']['confirmation_binding'] == 'template_id'
+raise 'send_documents not destructive' unless chat_tools['send_documents'].dig('annotations', 'destructiveHint') == true
 message = Mail.new(from: 'Old name <old@example.invalid>', to: 'test@example.invalid', subject: 'Header check', body: 'Not sent')
 ActionMailerConfigsInterceptor.delivering_email(message)
 raise 'Wrong From address' unless message.from == ['sign@gxb.vc']
@@ -53,4 +71,5 @@ raise 'Missing editor' unless editor.at_css('template-builder')
 raise 'Missing editor branding stylesheet' unless editor.at_css('link[href="/gxb-sign/builder-branding-v1.css"]')
 Warden.test_reset!
 puts 'PASS: Rails landing, metadata, attribution, source, manifest, setup lock, GXB SSO redirect, password form, ' \
-     'unsent mail headers, and authenticated editor branding'
+     'Chat API tools (401, 403, five tools, send_documents needs confirmation), unsent mail headers, ' \
+     'and authenticated editor branding'

@@ -46,10 +46,9 @@ module GxbSsoUser
       raise IdentityMismatch, email
     end
 
-    private
-
-    # Backfill on the first GXB sign-in. The write only lands while the stored value is still blank, so two
-    # callbacks for different subjects cannot both bind the same row; the loser sees the other subject and fails.
+    # Backfill on the first GXB sign-in or Chat call. The write only lands while the stored value is still blank,
+    # so two requests for different subjects cannot both bind the same row; the loser sees the other subject and
+    # fails.
     def bind_auth_uid!(user, auth_uid)
       where(id: user.id, auth_uid: nil).update_all(auth_uid:, updated_at: Time.current)
       user.reload
@@ -59,6 +58,8 @@ module GxbSsoUser
 
       raise IdentityMismatch, user.email
     end
+
+    private
 
     def provision_gxb_user(email, auth_uid, name)
       return unless email.end_with?(GXB_DOMAIN)

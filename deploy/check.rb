@@ -30,10 +30,11 @@ check("remote amd64 builder from this tree", config.dig("builder", "arch") == "a
 check("mail sender", config.dig("env", "clear", "SMTP_FROM") == "GXB Sign <sign@gxb.vc>")
 check("Mailgun SMTP", config.dig("env", "clear", "SMTP_ADDRESS") == "smtp.mailgun.org" && config.dig("env", "clear", "SMTP_PORT") == "587")
 check("verified SMTP TLS", config.dig("env", "clear", "SMTP_ENABLE_STARTTLS") == "true" && config.dig("env", "clear", "SMTP_SSL_VERIFY") == "true")
-secret_env = %w[SMTP_USERNAME SMTP_PASSWORD AUTH_GXB_CLIENT_SECRET]
-check("protected SMTP and GXB auth credentials", config.dig("env", "secret") == secret_env && (config.dig("env", "clear").keys & secret_env).empty?)
+secret_env = %w[SMTP_USERNAME SMTP_PASSWORD AUTH_GXB_CLIENT_SECRET CHAT_API_KEY]
+check("protected SMTP, GXB auth, and Chat API credentials", config.dig("env", "secret") == secret_env && (config.dig("env", "clear").keys & secret_env).empty?)
 check("GXB auth client id", config.dig("env", "clear", "AUTH_GXB_CLIENT_ID") == "sign")
 check("GXB auth secret source", File.read(File.join(ROOT, ".kamal/secrets")).include?("AUTH_GXB_CLIENT_SECRET=$(ruby deploy/secret.rb auth AUTH_GXB_CLIENT_SECRET)"))
+check("Chat API key source", File.read(File.join(ROOT, ".kamal/secrets")).include?("CHAT_API_KEY=$(ruby deploy/secret.rb chat CHAT_API_KEY)"))
 check("branding tests", system(RbConfig.ruby, File.join(__dir__, "test_branding.rb")))
 ruby_files = Dir[File.join(__dir__, "*.rb")] + [File.join(__dir__, "branding/initializer.rb"), File.join(ROOT, "bin/deploy-sign")]
 check("deployment Ruby lint", system({ "BUNDLE_GEMFILE" => File.join(__dir__, "Gemfile") }, "bundle", "exec", "rubocop", "--config", File.join(__dir__, "rubocop.yml"), *ruby_files))

@@ -114,7 +114,30 @@ when 'after'
 
   puts 'PASS: staff page -> auth.gxb.vc/oauth/authorize (client_id=sign), /sign_in?password=1 200'
 
-  puts 'PASS: only GXB migrations applied, Bailey v6 completed, signing links public, /setup locked'
+  # Chat host API as Christian with the fake candidate key and his email only (no auth_uid header, so no
+  # backfill write). Read-only: list the tools and search templates. Never create_template or send_documents.
+  chat_headers = { 'Authorization' => "Bearer #{ENV.fetch('CHAT_API_KEY')}", 'X-Auth-Email' => 'christian@gxb.vc' }
+  chat = new_session
+  chat.get('/chat_api/tools', headers: chat_headers)
+  raise "Chat API tools status #{chat.response.status}" unless chat.response.status == 200
+
+  chat_tools = JSON.parse(chat.response.body).fetch('tools').map { |tool| tool.fetch('name') }.sort
+  raise "Chat API tools #{chat_tools}" unless chat_tools == %w[create_template load_template search_documents
+                                                                search_templates send_documents]
+
+  chat.post('/chat_api/tools', params: { tool: 'search_templates', arguments: { q: BAILEY_NAME } }.to_json,
+                               headers: chat_headers.merge('Content-Type' => 'application/json'))
+  raise "Chat API search_templates status #{chat.response.status}" unless chat.response.status == 200
+
+  found = JSON.parse(chat.response.body).fetch('templates')
+  raise 'Chat API search_templates did not find Bailey v6' unless found.any? do |t|
+    t['id'] == BAILEY_TEMPLATE_ID && t['name'] == BAILEY_NAME
+  end
+
+  puts "PASS: Chat API lists 5 tools and search_templates finds template #{BAILEY_TEMPLATE_ID}"
+
+  puts 'PASS: only GXB migrations applied, Bailey v6 completed, signing links public, /setup locked, ' \
+       'Chat API read-only tools'
 else
   abort "Unknown phase #{phase}"
 end

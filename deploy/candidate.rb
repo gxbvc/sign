@@ -5,7 +5,8 @@ require 'open3'
 require 'json'
 
 # Disposable candidates of our built image on the app host.
-# Never mount sign_storage, never publish a port, never pass SMTP credentials or the real GXB auth secret.
+# Never mount sign_storage, never publish a port, never pass SMTP credentials, the real GXB auth secret,
+# or the real Chat API key.
 # The container, its --internal network, and its temp volume are removed after the checks, including on failure.
 module SignCandidate
   BACKUP_DIR = '/opt/sign/backups'
@@ -13,6 +14,8 @@ module SignCandidate
   GXB_MIGRATIONS = JSON.parse(File.read(File.join(__dir__, 'release.json'))).fetch('gxb_migrations').freeze
   # Turns on the GXB SSO redirect so the candidates can check it. Candidates have no egress and never follow it.
   FAKE_AUTH_SECRET = 'candidate-fake-auth-secret'
+  # Turns on /chat_api/tools. The real key never reaches a candidate.
+  FAKE_CHAT_API_KEY = 'candidate-fake-chat-api-key'
   ASSETS = %w[favicon.svg favicon-32x32.png apple-touch-icon.png icon-192.png icon-512.png og-image.png
               builder-branding-v1.css source.tar.gz].freeze
 
@@ -102,7 +105,7 @@ module SignCandidate
     clear = config.fetch('env').fetch('clear')
     env = { 'APP_URL' => 'http://localhost', 'SMTP_ADDRESS' => '127.0.0.1', 'SMTP_PORT' => '1',
             'SMTP_FROM' => clear.fetch('SMTP_FROM'), 'AUTH_GXB_CLIENT_ID' => clear.fetch('AUTH_GXB_CLIENT_ID'),
-            'AUTH_GXB_CLIENT_SECRET' => FAKE_AUTH_SECRET }.merge(extra_env)
+            'AUTH_GXB_CLIENT_SECRET' => FAKE_AUTH_SECRET, 'CHAT_API_KEY' => FAKE_CHAT_API_KEY }.merge(extra_env)
     command = ['docker', 'run', '--detach', '--name', names[:container], '--network', names[:network],
                '--memory', '1g', '--init', '--workdir', '/app', '-v', "#{names[:volume]}:/data/docuseal"]
     env.each { |key, value| command.push('-e', "#{key}=#{value}") }
