@@ -39,7 +39,11 @@ staff.get('/sign_in?password=1')
 raise 'Old password fallback not sent to GXB' unless staff.response.location.to_s.start_with?('https://auth.gxb.vc/')
 # Password sign-in is off: a correct password must not sign in, and reset links go to GXB sign-in.
 raise 'Devise params authentication is on' unless Devise.params_authenticatable == false
-staff.post('/sign_in', params: { user: { email: user.email, password: } })
+# A real CSRF token, so the POST reaches the sessions controller instead of stopping at forgery protection (422).
+staff.get('/')
+csrf = Nokogiri::HTML(staff.response.body).at_css('meta[name="csrf-token"]')&.[]('content')
+raise 'Landing has no CSRF token' if csrf.blank?
+staff.post('/sign_in', params: { authenticity_token: csrf, user: { email: user.email, password: } })
 raise "Password POST status #{staff.response.status}" unless staff.response.location.to_s.end_with?('/sign_in')
 staff.get('/templates')
 raise 'Correct password signed in' unless staff.response.location.to_s.start_with?('https://auth.gxb.vc/')
