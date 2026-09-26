@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 # The return leg of the auth.gxb.vc OAuth handoff started by the Devise failure app or GET /sign_in.
-# Same flow as ~/projects/sites. A refusal lands on the password form with a message.
+# Same flow as ~/projects/sites. A refusal renders a page with the reason. It never redirects to /sign_in,
+# because that goes straight back to GXB and would loop.
 class AuthCallbacksController < ApplicationController
   skip_before_action :authenticate_user!
   skip_authorization_check
@@ -39,7 +40,7 @@ class AuthCallbacksController < ApplicationController
   private
 
   def refuse(message)
-    redirect_to new_user_session_path(password: 1), alert: message
+    render :refused, locals: { message: }, status: :forbidden
   end
 
   def safe_return_path(path)

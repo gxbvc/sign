@@ -9,14 +9,19 @@
   "gxb_changed_upstream_files": [
     ".dockerignore",
     "Dockerfile",
-    "db/schema.rb"
+    "app/views/profile/index.html.erb",
+    "db/schema.rb",
+    "spec/system/profile_settings_spec.rb",
+    "spec/system/sign_in_spec.rb"
   ],
   "gxb_added_files": [
     "app/controllers/auth_callbacks_controller.rb",
     "app/controllers/chat_api/tools_controller.rb",
     "app/controllers/concerns/chat_api_authenticatable.rb",
+    "app/controllers/concerns/gxb_sso_no_password_reset.rb",
     "app/controllers/concerns/gxb_sso_sign_in.rb",
     "app/models/concerns/gxb_sso_user.rb",
+    "app/views/auth_callbacks/refused.html.erb",
     "config/initializers/auth_gxb.rb",
     "config/initializers/chat_api.rb",
     "db/migrate/20260925190000_add_auth_uid_to_users.rb",
