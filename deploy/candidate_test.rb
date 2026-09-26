@@ -5,7 +5,8 @@ abort 'Not a disposable branding check' unless ENV['SIGN_BRANDING_CHECK'] == 'tr
 abort 'Candidate database must be empty' if User.exists? || Account.exists?
 
 account = Account.create!(name: 'GXB Sign test')
-user = User.create!(account: account, email: 'branding@example.invalid', password: SecureRandom.hex(24))
+password = SecureRandom.hex(24)
+user = User.create!(account: account, email: 'branding@example.invalid', password:)
 session = ActionDispatch::Integration::Session.new(Rails.application)
 session.host!('localhost')
 session.get('/')
@@ -35,9 +36,17 @@ raise 'Wrong GXB client or callback' unless query['client_id'] == 'sign' && quer
 staff.get('/sign_in')
 raise 'Sign-in not sent to GXB' unless staff.response.location.to_s.start_with?('https://auth.gxb.vc/oauth/authorize?')
 staff.get('/sign_in?password=1')
-raise "Password form status #{staff.response.status}" unless staff.response.status == 200
+raise 'Old password fallback not sent to GXB' unless staff.response.location.to_s.start_with?('https://auth.gxb.vc/')
+# Password sign-in is off: a correct password must not sign in, and reset links go to GXB sign-in.
+raise 'Devise params authentication is on' unless Devise.params_authenticatable == false
+staff.post('/sign_in', params: { user: { email: user.email, password: } })
+raise "Password POST status #{staff.response.status}" unless staff.response.location.to_s.end_with?('/sign_in')
+staff.get('/templates')
+raise 'Correct password signed in' unless staff.response.location.to_s.start_with?('https://auth.gxb.vc/')
+staff.get('/password/edit?reset_password_token=wrong')
+raise 'Password reset page not sent to sign-in' unless staff.response.location.to_s.end_with?('/sign_in')
 staff.get('/auth/callback?state=wrong&code=wrong')
-raise 'Bad callback not refused' unless staff.response.location.to_s.end_with?('/sign_in?password=1')
+raise "Bad callback not refused: #{staff.response.status}" unless staff.response.status == 403
 # Chat host API with the fake candidate key. Lists tools only; never calls a tool.
 chat_key = ENV.fetch('CHAT_API_KEY')
 chat = ActionDispatch::Integration::Session.new(Rails.application)
@@ -70,6 +79,6 @@ editor = Nokogiri::HTML(session.response.body)
 raise 'Missing editor' unless editor.at_css('template-builder')
 raise 'Missing editor branding stylesheet' unless editor.at_css('link[href="/gxb-sign/builder-branding-v1.css"]')
 Warden.test_reset!
-puts 'PASS: Rails landing, metadata, attribution, source, manifest, setup lock, GXB SSO redirect, password form, ' \
+puts 'PASS: Rails landing, metadata, attribution, source, manifest, setup lock, GXB SSO redirect, password sign-in off, ' \
      'Chat API tools (401, 403, five tools, send_documents needs confirmation), unsent mail headers, ' \
      'and authenticated editor branding'

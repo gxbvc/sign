@@ -100,7 +100,7 @@ when 'after'
     puts "INFO: submitter id=#{submitter.id} /s/:slug #{first.first} -> #{first.last} 200"
   end
 
-  # Staff pages go to GXB (never followed; no egress). The password form stays reachable.
+  # Staff pages go to GXB (never followed; no egress). The old password fallback goes there too.
   staff = new_session
   staff.get('/templates')
   authorize = URI(staff.response.location.to_s)
@@ -110,9 +110,10 @@ when 'after'
   raise 'Wrong GXB client or callback' unless query['client_id'] == 'sign' &&
                                               query['redirect_uri'] == 'http://localhost/auth/callback'
   staff.get('/sign_in?password=1')
-  raise "Password form status #{staff.response.status}" unless staff.response.status == 200
+  raise 'Old password fallback not sent to GXB' unless staff.response.location.to_s.start_with?('https://auth.gxb.vc/')
+  raise 'Devise params authentication is on' unless Devise.params_authenticatable == false
 
-  puts 'PASS: staff page -> auth.gxb.vc/oauth/authorize (client_id=sign), /sign_in?password=1 200'
+  puts 'PASS: staff page and /sign_in?password=1 -> auth.gxb.vc/oauth/authorize (client_id=sign), password sign-in off'
 
   # Chat host API as Christian with the fake candidate key and his email only (no auth_uid header, so no
   # backfill write). Read-only: list the tools and search templates. Never create_template or send_documents.

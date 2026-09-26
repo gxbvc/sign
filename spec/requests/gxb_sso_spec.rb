@@ -41,6 +41,12 @@ describe 'GXB SSO' do
     expect(response.location.to_s).not_to include('/sign_in')
   end
 
+  def expect_refused(message = nil)
+    expect(response).to have_http_status(:forbidden)
+    expect(response.body).not_to include('user[password]')
+    expect(response.body).to include(message) if message
+  end
+
   def start_gxb_sign_in(path = '/sign_in')
     get path
 
@@ -136,38 +142,52 @@ describe 'GXB SSO' do
       expect_gxb_authorize_redirect
     end
 
-    it 'keeps the password form at /sign_in?password=1' do
+    it 'ignores the old ?password=1 fallback' do
       get '/sign_in?password=1'
 
-      expect(response).to have_http_status(:ok)
-      expect(response.body).to include('user[password]')
+      expect_gxb_authorize_redirect
     end
 
-    it 'signs in with a correct password' do
+    it 'never signs in with a password, even a correct one' do
       post '/sign_in', params: { user: { email: admin.email, password: 'correct-password-1' } }
 
-      expect(response).to redirect_to('/')
-      expect(staff_signed_in?).to be(true)
+      expect(response).to redirect_to('/sign_in')
+      expect(staff_signed_in?).to be(false)
     end
 
-    it 'keeps the password form after a wrong password' do
-      post '/sign_in', params: { user: { email: admin.email, password: 'wrong-password' } }
-
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(response.body).to include('user[password]')
-    end
-
-    it 'keeps the password two-factor step' do
+    it 'never signs in with a password and a correct two-factor code' do
       admin.update!(otp_required_for_login: true, otp_secret: User.generate_otp_secret)
-
-      post '/sign_in', params: { user: { email: admin.email, password: 'correct-password-1' } }
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(response.body).to include('user[otp_attempt]')
 
       post '/sign_in', params: { user: { email: admin.email, password: 'correct-password-1',
                                          otp_attempt: admin.current_otp } }
-      expect(response).to redirect_to('/')
-      expect(staff_signed_in?).to be(true)
+
+      expect(staff_signed_in?).to be(false)
+    end
+
+    it 'turns off Devise params (password) authentication' do
+      expect(Devise.params_authenticatable).to be(false)
+    end
+
+    it 'sends every password reset page to GXB sign-in without sending mail or changing the password' do
+      token = admin.send(:set_reset_password_token)
+      digest = admin.reload.encrypted_password
+
+      get '/password/new'
+      expect(response).to redirect_to('/sign_in')
+
+      expect do
+        post '/password', params: { user: { email: admin.email } }
+      end.not_to change(ActionMailer::Base.deliveries, :size)
+      expect(response).to redirect_to('/sign_in')
+
+      get '/password/edit', params: { reset_password_token: token }
+      expect(response).to redirect_to('/sign_in')
+
+      put '/password', params: { user: { reset_password_token: token, password: 'new-password-123',
+                                         password_confirmation: 'new-password-123' } }
+      expect(response).to redirect_to('/sign_in')
+      expect(admin.reload.encrypted_password).to eq(digest)
+      expect(staff_signed_in?).to be(false)
     end
 
     it 'keeps the API 401 JSON without a token' do
@@ -191,7 +211,7 @@ describe 'GXB SSO' do
 
       get '/auth/callback', params: { state: 'wrong', code: 'abc' }
 
-      expect(response).to redirect_to('/sign_in?password=1')
+      expect_refused
       expect(a_request(:post, token_url)).not_to have_been_made
       expect(staff_signed_in?).to be(false)
     end
@@ -199,7 +219,7 @@ describe 'GXB SSO' do
     it 'refuses a callback that was never started' do
       get '/auth/callback', params: { state: 'anything', code: 'abc' }
 
-      expect(response).to redirect_to('/sign_in?password=1')
+      expect_refused
       expect(staff_signed_in?).to be(false)
     end
 
@@ -209,7 +229,7 @@ describe 'GXB SSO' do
 
       get '/auth/callback', params: { state:, code: 'abc' }
 
-      expect(response).to redirect_to('/sign_in?password=1')
+      expect_refused
       expect(staff_signed_in?).to be(false)
     end
 
@@ -219,7 +239,7 @@ describe 'GXB SSO' do
 
       get '/auth/callback', params: { state:, code: 'abc' }
 
-      expect(response).to redirect_to('/sign_in?password=1')
+      expect_refused
       expect(admin.reload.auth_uid).to be_nil
       expect(staff_signed_in?).to be(false)
     end
@@ -236,7 +256,7 @@ describe 'GXB SSO' do
 
         get '/auth/callback', params: { state:, code: 'abc' }
 
-        expect(response).to redirect_to('/sign_in?password=1')
+        expect_refused
         expect(admin.reload.auth_uid).to be_nil
         expect(staff_signed_in?).to be(false)
       end
@@ -286,7 +306,7 @@ describe 'GXB SSO' do
 
       expect { get '/auth/callback', params: { state:, code: 'abc' } }.not_to change(User, :count)
 
-      expect(response).to redirect_to('/sign_in?password=1')
+      expect_refused
       expect(staff_signed_in?).to be(false)
     end
 
@@ -297,8 +317,7 @@ describe 'GXB SSO' do
 
       get '/auth/callback', params: { state:, code: 'abc' }
 
-      expect(response).to redirect_to('/sign_in?password=1')
-      expect(flash[:alert]).to include('different GXB account')
+      expect_refused('different GXB account')
       expect(admin.reload.auth_uid).to eq('uid-original')
       expect(staff_signed_in?).to be(false)
     end
@@ -312,7 +331,7 @@ describe 'GXB SSO' do
 
       get '/auth/callback', params: { state:, code: 'abc' }
 
-      expect(response).to redirect_to('/sign_in?password=1')
+      expect_refused
       expect(staff_signed_in?).to be(false)
     end
 
@@ -322,17 +341,18 @@ describe 'GXB SSO' do
 
       expect { get '/auth/callback', params: { state:, code: 'abc' } }.not_to change(User, :count)
 
-      expect(response).to redirect_to('/sign_in?password=1')
+      expect_refused
     end
   end
 
   describe 'with a blank client secret' do
     let(:secret) { nil }
 
-    it 'falls back to the password form' do
+    it 'shows "not configured" and never a password form' do
       get '/sign_in'
-      expect(response).to have_http_status(:ok)
-      expect(response.body).to include('user[password]')
+      expect(response).to have_http_status(:service_unavailable)
+      expect(response.body).to include('GXB sign-in is not configured')
+      expect(response.body).not_to include('user[password]')
 
       get '/templates'
       expect(response).to redirect_to('/sign_in')
@@ -341,7 +361,7 @@ describe 'GXB SSO' do
     it 'fails closed at /auth/callback' do
       get '/auth/callback', params: { state: 'x', code: 'abc' }
 
-      expect(response).to redirect_to('/sign_in?password=1')
+      expect_refused
       expect(a_request(:post, token_url)).not_to have_been_made
       expect(staff_signed_in?).to be(false)
     end

@@ -1,58 +1,25 @@
 # frozen_string_literal: true
 
+# GXB: staff sign in only with GXB (auth.gxb.vc). The upstream password and two-factor form specs are replaced
+# because that form no longer exists. spec/requests/gxb_sso_spec.rb covers the full flow.
 RSpec.describe 'Sign In' do
   let(:account) { create(:account) }
   let!(:user) { create(:user, account:, email: 'john.dou@example.com', password: 'strong_password') }
 
-  before do
+  it 'has no password form when GXB sign-in is not configured' do
     visit new_user_session_path
+
+    expect(page).to have_content('GXB sign-in is not configured')
+    expect(page).to have_no_field('Password')
+    expect(page).to have_no_content('Document Templates')
   end
 
-  context 'when only with email and password' do
-    it 'signs in successfully with valid email and password' do
-      fill_in 'Email', with: 'john.dou@example.com'
-      fill_in 'Password', with: 'strong_password'
-      click_button 'Sign In'
+  it 'sends a password reset link to GXB sign-in' do
+    token = user.send(:set_reset_password_token)
 
-      expect(page).to have_content('Signed in successfully')
-      expect(page).to have_content('Document Templates')
-    end
+    visit edit_user_password_path(reset_password_token: token)
 
-    it "doesn't sign in if the email or password are incorrect" do
-      fill_in 'Email', with: 'john.dou@example.com'
-      fill_in 'Password', with: 'wrong_password'
-      click_button 'Sign In'
-
-      expect(page).to have_content('Invalid email or password')
-      expect(page).not_to have_content('Document Templates')
-    end
-  end
-
-  context 'when 2FA is required' do
-    before do
-      user.update(otp_required_for_login: true, otp_secret: User.generate_otp_secret)
-    end
-
-    it 'signs in successfully with valid OTP code' do
-      fill_in 'Email', with: 'john.dou@example.com'
-      fill_in 'Password', with: 'strong_password'
-      click_button 'Sign In'
-      fill_in 'Two-Factor Code from Authenticator App', with: user.current_otp
-      click_button 'Sign In'
-
-      expect(page).to have_content('Signed in successfully')
-      expect(page).to have_content('Document Templates')
-    end
-
-    it 'fails to sign in with invalid OTP code' do
-      fill_in 'Email', with: 'john.dou@example.com'
-      fill_in 'Password', with: 'strong_password'
-      click_button 'Sign In'
-      fill_in 'Two-Factor Code from Authenticator App', with: '123456'
-      click_button 'Sign In'
-
-      expect(page).to have_content('Invalid email or password')
-      expect(page).not_to have_content('Document Templates')
-    end
+    expect(page).to have_content('GXB sign-in is not configured')
+    expect(page).to have_no_field('Password')
   end
 end
