@@ -82,7 +82,21 @@ raise "Editor status #{session.response.status}" unless session.response.status 
 editor = Nokogiri::HTML(session.response.body)
 raise 'Missing editor' unless editor.at_css('template-builder')
 raise 'Missing editor branding stylesheet' unless editor.at_css('link[href="/gxb-sign/builder-branding-v1.css"]')
+# Field guard (lib/gxb_field_guard.rb): a raw datenow field is stored as a read-only date, and the REST API
+# refuses a type the signing form cannot show with a 422 that names the field, not a 500.
+guarded = Template.create!(account: account, author: user, name: 'Disposable field guard check',
+                           submitters: [{ 'name' => 'Signer', 'uuid' => 'guard-submitter' }],
+                           fields: [{ 'uuid' => 'guard-date', 'submitter_uuid' => 'guard-submitter', 'name' => 'Date',
+                                      'type' => 'datenow', 'required' => true, 'preferences' => {}, 'areas' => [] }])
+stored = guarded.reload.fields.first
+raise "datenow not normalized: #{stored.inspect}" unless stored.values_at('type', 'readonly', 'default_value') ==
+                                                         ['date', true, '{{date}}']
+api_headers = { 'x-auth-token' => user.access_token.token, 'content-type' => 'application/json' }
+bad_fields = [stored.merge('uuid' => 'guard-bad', 'name' => 'Stamp duty', 'type' => 'dropdown')]
+session.put("/api/templates/#{guarded.id}", params: { fields: bad_fields }.to_json, headers: api_headers)
+raise "Bad field type status #{session.response.status}" unless session.response.status == 422
+raise 'Bad field error does not name the field' unless JSON.parse(session.response.body)['error'].to_s.include?('"Stamp duty"')
 Warden.test_reset!
 puts 'PASS: Rails landing, metadata, attribution, source, manifest, setup lock, GXB SSO redirect, password sign-in off, ' \
      'Chat API tools (401, 403, five tools, send_documents needs confirmation), unsent mail headers, ' \
-     'and authenticated editor branding'
+     'authenticated editor branding, and the field guard (datenow normalized, unknown type refused with 422)'

@@ -256,6 +256,20 @@ describe 'Chat API tools' do
         expect(SendSubmitterInvitationEmailJob.jobs).to be_empty
         expect(ActionMailer::Base.deliveries).to be_empty
       end
+
+      it 'refuses to send a template with a field no signer can fill, naming the field (GxbFieldGuard)' do
+        locked = { 'uuid' => SecureRandom.uuid, 'name' => 'Locked date', 'type' => 'date', 'required' => true,
+                   'readonly' => true, 'submitter_uuid' => template.submitters.first['uuid'] }
+        template.update_column(:fields, template.fields + [locked])
+
+        expect do
+          call_tool('send_documents', { template_id: template.id, submitters: [{ email: 'signer@example.com' }] })
+        end.not_to change(Submission, :count)
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(response.parsed_body['error']).to include('"Locked date"', 'nobody can fill it')
+        expect(ActionMailer::Base.deliveries).to be_empty
+      end
     end
 
     it 'answers malformed JSON and unexpected errors with JSON' do

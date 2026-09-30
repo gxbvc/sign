@@ -72,6 +72,19 @@ when 'after'
   raise "Expected 2 Bailey submitters, got #{submitters.size}" unless submitters.size == 2
   raise 'Bailey submitters not all completed' unless submitters.all? { |s| s.completed_at.present? }
 
+  # Field guard on the copied data. A template that fails type_problems could not be saved again (even a rename), so
+  # that stops the deploy. signable_problems only means a new send would be refused, so it is printed for review.
+  raw_datenow = Template.all.sum { |t| t.fields.count { |f| f['type'] == 'datenow' } }
+  puts "INFO: raw datenow fields in templates=#{raw_datenow} (the guard converts them on the next save)"
+  Template.find_each do |t|
+    problems = GxbFieldGuard.type_problems(GxbFieldGuard.normalize(t.fields))
+    raise "Template #{t.id} fails the field guard: #{problems.join('; ')}" unless problems.empty?
+
+    signable = GxbFieldGuard.signable_problems(GxbFieldGuard.normalize(t.fields), t.submitters)
+    puts "WARN: template #{t.id} would be refused for sending: #{signable.join('; ')}" unless signable.empty?
+  end
+  puts "PASS: all #{Template.count} templates pass the field guard"
+
   session = new_session
   session.get('/setup')
   raise "Setup open on production copy: #{session.response.status}" unless session.response.redirect?

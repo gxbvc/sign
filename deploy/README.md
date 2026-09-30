@@ -86,3 +86,14 @@ GXB Chat (project `sign`, `tools_endpoint` `/chat_api/tools`) lists tools with `
 - Errors are JSON: unknown tool 404, bad arguments 422, a record that is missing or in another account 404.
 
 `CHAT_API_KEY` must equal the Chat project's `api_key`. It comes from protected `~/.config/sign/chat.json` (JSON key `CHAT_API_KEY`, mode 0600) through `deploy/secret.rb chat CHAT_API_KEY`; `SIGN_CHAT_FILE` can select a different file. Candidates get a fake key. Candidate A checks 401, 403, the five tools, and the `send_documents` confirmation flag. Candidate B lists the tools as `christian@gxb.vc` (email only, so nothing is written) and finds the Bailey template with `search_templates`.
+
+## Field guard
+
+Every way of writing fields (editor, REST API, PDF tags, DocuSeal MCP, GXB Chat) ends in `Template#fields` or `Submission#template_fields`, so the checks live on those models: `lib/gxb_field_guard.rb`, `app/models/concerns/gxb_template_fields.rb`, `app/models/concerns/gxb_submission_fields.rb`, included by `config/initializers/field_guard_gxb.rb`. No upstream file changes.
+
+- On every template and submission save, a raw `datenow` field becomes a read-only `date` with default `{{date}}` (what the editor does). Without this, the signing form has no step for it and the signer is stuck (Cameron Davis, 2026-09-30).
+- On every template save, a type the signing form cannot show is refused. The list is `GxbFieldGuard::TYPES`; a spec compares it with the editor type list so a new upstream type cannot drift.
+- When a submission is created, or its field snapshot changes, these are refused: a required read-only field with no default value, a field whose `submitter_uuid` is not a signer, a select, radio, or multiple field with no options, and duplicate field uuids. Editor drafts still save, because these checks are not on template saves.
+- The REST API answers 422 and DocuSeal MCP returns a tool error with the field name, not a 500. GXB Chat already returned 422 for `RecordInvalid`.
+- Deploy checks: candidate A proves `datenow` is normalized and the API refuses an unknown type. Candidate B runs every template in the restored backup through the guard; a template with an unknown type stops the deploy, and a template that could not be sent again is printed as `WARN`.
+- Raw SQL, `update_column`, and `insert_all` skip model callbacks. The production runner uses `update!`.
