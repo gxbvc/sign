@@ -12,7 +12,7 @@ module Mcp
       render_result(
         protocolVersion: '2025-11-25',
         serverInfo: {
-          name: 'DocuSeal',
+          name: 'GXB Sign',
           version: Docuseal.version.to_s
         },
         capabilities: {

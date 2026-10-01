@@ -34,7 +34,7 @@ module Submissions
       bold_italic: FONT_BOLD_NAME
     }.freeze
 
-    SIGN_REASON = 'Signed with DocuSeal.com'
+    SIGN_REASON = 'Signed with GXB Sign'
 
     UNSUPPORTED_IMAGE_TYPES = ['image/heic', 'image/avif'].freeze
 
@@ -1043,7 +1043,7 @@ module Submissions
     end
 
     def info_creator
-      "#{Docuseal.product_name} (#{Docuseal::PRODUCT_URL})"
+      Docuseal.product_name
     end
 
     def detached_signature?(_submitter)
