@@ -3,7 +3,7 @@
 - URL: https://sign.gxb.vc
 - Server: DigitalOcean `gxb-nyc1`, `104.131.24.46`, NYC3.
 - Upstream: free DocuSeal 3.2.6 source (commit in `release.json`). This checkout is that source plus the GXB overlay, built as `ghcr.io/gxbvc/sign:<commit>` on the host's remote BuildKit.
-- Branding: `branding/` is baked into the image by the GXB block in `Dockerfile` (same paths the old read-only mounts used). The product name is "GXB Sign" everywhere users see it (`PRODUCT_NAME` in `lib/docuseal.rb`, locale strings, emails, PDFs). Christian approved removing the "Powered by DocuSeal" footers and email attribution on 2026-10-01; only a "Source code" link remains. No paid features are enabled.
+- Branding: `branding/` is baked into the image by the GXB block in `Dockerfile` (same paths the old read-only mounts used). The product name is "GXB Sign" everywhere users see it (`PRODUCT_NAME` in `lib/docuseal.rb`, locale strings, emails, PDFs). Christian approved removing the "Powered by DocuSeal" footers and email attribution on 2026-10-01; the footer keeps a "Based on DocuSeal" credit (links to the original repo, for `LICENSE_ADDITIONAL_TERMS`) and a "Source code" link (our own archive, for AGPL section 13; the upstream repo alone would not include GXB changes). No paid features are enabled.
 - Version: the deployment Git commit is the image tag and the container name. The app reports 3.2.6 from `ARG DOCUSEAL_VERSION`.
 - Routing: the existing shared kamal-proxy provides HTTPS. The app's port 3000 stays on the Docker network.
 - Data: `sign_storage:/data/docuseal` holds SQLite, attachments, and generated keys. Never remove it.

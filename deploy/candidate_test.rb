@@ -14,7 +14,8 @@ raise "Landing status #{session.response.status}" unless session.response.status
 html = Nokogiri::HTML(session.response.body)
 raise 'Wrong page title' unless html.at_css('title').text.strip == 'GXB Sign'
 raise 'Wrong heading' unless html.at_css('h1').text.strip == 'GXB Sign'
-raise 'DocuSeal footer present' if html.css('a').any? { |a| a.text == 'DocuSeal' } || html.text.match?(/powered by/i)
+raise 'Missing DocuSeal credit' unless html.css('a').any? { |a| a.text == 'DocuSeal' && a['href'] == 'https://github.com/docusealco/docuseal' }
+raise 'Powered-by footer present' if html.text.match?(/powered by/i)
 raise 'Missing source' unless html.at_css('a[href="/gxb-sign/source.tar.gz"]')
 raise 'Wrong OG image' unless html.at_css('meta[property="og:image"]')['content'] == 'http://localhost/gxb-sign/og-image.png'
 raise 'Wrong favicon' unless html.at_css('link[type="image/svg+xml"]')['href'] == '/gxb-sign/favicon.svg'

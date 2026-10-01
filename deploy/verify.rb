@@ -21,7 +21,8 @@ abort 'FAIL: OG title' unless html.include?('property="og:title" content="GXB Si
 abort 'FAIL: OG image' unless html.include?("#{origin}/gxb-sign/og-image.png")
 abort 'FAIL: favicon' unless html.include?('href="/gxb-sign/favicon.svg"')
 abort 'FAIL: builder branding stylesheet' unless html.include?('href="/gxb-sign/builder-branding-v1.css"')
-abort 'FAIL: DocuSeal footer' if html.match?(/powered by|>DocuSeal</i)
+abort 'FAIL: DocuSeal credit' unless html.include?('Based on <a href="https://github.com/docusealco/docuseal"')
+abort 'FAIL: powered-by footer' if html.match?(/powered by/i)
 abort 'FAIL: source link' unless html.include?('href="/gxb-sign/source.tar.gz"')
 manifest = JSON.parse(fetch.call('/manifest.json'))
 abort 'FAIL: manifest name' unless manifest['name'] == 'GXB Sign'

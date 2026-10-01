@@ -93,7 +93,8 @@ when 'after'
   html = Nokogiri::HTML(session.response.body)
   if session.response.status == 200
     raise 'Wrong page title' unless html.at_css('title').text.strip == 'GXB Sign'
-    raise 'DocuSeal footer present' if html.css('a').any? { |a| a.text == 'DocuSeal' } || html.text.match?(/powered by/i)
+    raise 'Missing DocuSeal credit' unless html.css('a').any? { |a| a.text == 'DocuSeal' && a['href'] == 'https://github.com/docusealco/docuseal' }
+    raise 'Powered-by footer present' if html.text.match?(/powered by/i)
     raise 'Missing source' unless html.at_css('a[href="/gxb-sign/source.tar.gz"]')
   end
   puts "INFO: landing status=#{session.response.status}"
