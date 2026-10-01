@@ -3,7 +3,7 @@
 - URL: https://sign.gxb.vc
 - Server: DigitalOcean `gxb-nyc1`, `104.131.24.46`, NYC3.
 - Upstream: free DocuSeal 3.2.6 source (commit in `release.json`). This checkout is that source plus the GXB overlay, built as `ghcr.io/gxbvc/sign:<commit>` on the host's remote BuildKit.
-- Branding: `branding/` is baked into the image by the GXB block in `Dockerfile` (same paths the old read-only mounts used). Required DocuSeal attribution remains. No paid features are enabled.
+- Branding: `branding/` is baked into the image by the GXB block in `Dockerfile` (same paths the old read-only mounts used). The product name is "GXB Sign" everywhere users see it (`PRODUCT_NAME` in `lib/docuseal.rb`, locale strings, emails, PDFs). Christian approved removing the "Powered by DocuSeal" footers and email attribution on 2026-10-01; only a "Source code" link remains. No paid features are enabled.
 - Version: the deployment Git commit is the image tag and the container name. The app reports 3.2.6 from `ARG DOCUSEAL_VERSION`.
 - Routing: the existing shared kamal-proxy provides HTTPS. The app's port 3000 stays on the Docker network.
 - Data: `sign_storage:/data/docuseal` holds SQLite, attachments, and generated keys. Never remove it.
@@ -34,7 +34,7 @@ Release directories are not overwritten. If activation fails after preparation, 
 
 ## Branding and source
 
-The initializer prepends the custom view directory to Rails controllers, including the standalone PWA controller. It does not change `Docuseal.product_name`, license checks, email attribution, or signing logic. The Vue document editor has a separate inline logo. `builder-branding-v1.css` displays the signature icon in that home link while keeping Vue's DOM and its 40px size intact. The selector is limited to the editor header; other SVGs and attribution are unchanged. The candidate also checks the authenticated editor layout. Use a new stylesheet filename when changing it because public assets are cached. Metadata keeps upstream private-preview suppression and per-document titles.
+The initializer prepends the custom view directory to Rails controllers, including the standalone PWA controller. It does not change license checks or signing logic. The Vue document editor has a separate inline logo. `builder-branding-v1.css` displays the signature icon in that home link while keeping Vue's DOM and its 40px size intact. The selector is limited to the editor header; other SVGs and attribution are unchanged. The candidate also checks the authenticated editor layout. Use a new stylesheet filename when changing it because public assets are cached. Metadata keeps upstream private-preview suppression and per-document titles.
 
 The Lucide Signature SVG is white on a black circle. Its license is in `branding/LUCIDE-LICENSE`. PNG and ICO versions are committed. To regenerate icons, use ImageMagick with a transparent background and the required dimensions. Public files are normalized to readable permissions during packaging.
 
@@ -44,7 +44,7 @@ The Lucide Signature SVG is white on a black circle. Its license is in `branding
 html-to-image deploy/branding/public/og-image.html --scale 1
 ```
 
-Every deployment publishes `/gxb-sign/source.tar.gz`, linked from the retained DocuSeal footer. It is `git archive` of the deployed commit (`deploy/source_archive.rb`), without `plans/`: the full DocuSeal source, the GXB changes, and these build instructions. No credentials, user data, or documents are included. `docker build .` after writing the archive reproduces the image.
+Every deployment publishes `/gxb-sign/source.tar.gz`, linked from the footer ("Source code"). It is `git archive` of the deployed commit (`deploy/source_archive.rb`), without `plans/`: the full DocuSeal source, the GXB changes, and these build instructions. No credentials, user data, or documents are included. `docker build .` after writing the archive reproduces the image.
 
 ## Data, mail, and recovery
 

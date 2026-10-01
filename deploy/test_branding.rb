@@ -81,12 +81,10 @@ class BrandingTest < Minitest::Test
     end
   end
 
-  def test_attribution_and_source_remain
+  def test_footer_has_only_source_link
     html = File.read(File.join(ROOT, 'views/shared/_powered_by.html.erb'))
-    assert_includes html, 'Docuseal::PRODUCT_URL'
-    assert_includes html, 'Docuseal.product_name'
     assert_includes html, '/gxb-sign/source.tar.gz'
-    refute_match(/PRODUCT_NAME\s*=/, File.read(File.join(ROOT, 'initializer.rb')))
+    refute_match(/powered|docuseal/i, html)
     assert File.file?(File.join(ROOT, 'LUCIDE-LICENSE'))
   end
 
