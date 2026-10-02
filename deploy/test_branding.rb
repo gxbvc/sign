@@ -85,7 +85,7 @@ class BrandingTest < Minitest::Test
     html = File.read(File.join(ROOT, 'views/shared/_powered_by.html.erb'))
     assert_includes html, 'Based on'
     assert_includes html, 'Docuseal::GITHUB_URL'
-    assert_includes html, '/gxb-sign/source.tar.gz'
+    assert_includes html, 'https://github.com/gxbvc/sign'
     refute_match(/powered/i, html)
     assert File.file?(File.join(ROOT, 'LUCIDE-LICENSE'))
   end
