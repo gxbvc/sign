@@ -3,7 +3,7 @@
 - URL: https://sign.gxb.vc
 - Server: DigitalOcean `gxb-nyc1`, `104.131.24.46`, NYC3.
 - Upstream: free DocuSeal 3.2.6 source (commit in `release.json`). This checkout is that source plus the GXB overlay, built as `ghcr.io/gxbvc/sign:<commit>` on the host's remote BuildKit.
-- Branding: `branding/` is baked into the image by the GXB block in `Dockerfile` (same paths the old read-only mounts used). The product name is "GXB Sign" everywhere users see it (`PRODUCT_NAME` in `lib/docuseal.rb`, locale strings, emails, PDFs). Christian approved removing the "Powered by DocuSeal" footers and email attribution on 2026-10-01; the footer keeps a "Based on DocuSeal" credit (links to the original repo, for `LICENSE_ADDITIONAL_TERMS`) and a "Source code" link (our own archive, for AGPL section 13; the upstream repo alone would not include GXB changes). No paid features are enabled.
+- Branding: `branding/` is baked into the image by the GXB block in `Dockerfile` (same paths the old read-only mounts used). The product name is "GXB Sign" everywhere users see it (`PRODUCT_NAME` in `lib/docuseal.rb`, locale strings, emails, PDFs). Christian approved removing the "Powered by DocuSeal" footers and email attribution on 2026-10-01; the footer keeps a "Based on DocuSeal" credit (links to the original repo, for `LICENSE_ADDITIONAL_TERMS`) and a "Source code" link to https://github.com/gxbvc/sign (for AGPL section 13; the upstream repo alone would not include GXB changes). No paid features are enabled.
 - Version: the deployment Git commit is the image tag and the container name. The app reports 3.2.6 from `ARG DOCUSEAL_VERSION`.
 - Routing: the existing shared kamal-proxy provides HTTPS. The app's port 3000 stays on the Docker network.
 - Data: `sign_storage:/data/docuseal` holds SQLite, attachments, and generated keys. Never remove it.
@@ -28,7 +28,7 @@ ruby deploy/verify.rb
 
 `prepare.rb COMMIT BACKUP` pulls our image on the host and runs two disposable candidates. Neither has a public port, the production volume, SMTP credentials, or the real GXB auth secret (a fake one turns on the SSO redirect, which is never followed), and each uses its own `--internal` network and temp volume that are removed after the checks, including on failure. Candidate A uses an empty volume: landing page, metadata, attribution, source link, manifest, setup lock after a throwaway account, staff page redirect to auth.gxb.vc, password sign-in and reset refused, unsent email headers, editor branding, and every public asset. Candidate B restores the named backup without `dump.rdb` (so no queued jobs run) and proves boot applied only the `gxb_migrations` (upstream schema still `production_schema_version`), no migrations are pending, Bailey v6 is completed, both Bailey signing links open their completed pages with no login, staff pages redirect to auth.gxb.vc, and `/setup` redirects.
 
-`bin/deploy-sign BACKUP` requires a clean tree. It runs the checks and the shared-proxy precheck, writes the source archive, logs in to GHCR with `gh auth token`, builds and pushes, runs both candidates, then `kamal redeploy --skip-push`. That pulls and boots the app. It does not boot or change the shared proxy and never runs `app remove`.
+`bin/deploy-sign BACKUP` requires a clean tree. It runs the checks and the shared-proxy precheck, writes the source archive, logs in to GHCR with `gh auth token`, builds and pushes, runs both candidates, publishes the source mirror (`deploy/publish_source.rb`: a throwaway clone with `plans/` removed from history, force-pushed to `gxbvc/sign`), then `kamal redeploy --skip-push`. That pulls and boots the app. It does not boot or change the shared proxy and never runs `app remove`.
 
 Release directories are not overwritten. If activation fails after preparation, inspect the failure and existing release before retrying. Keep directories referenced by running or rollback containers. Remove only unused candidate directories after inspection.
 
@@ -44,7 +44,7 @@ The Lucide Signature SVG is white on a black circle. Its license is in `branding
 html-to-image deploy/branding/public/og-image.html --scale 1
 ```
 
-Every deployment publishes `/gxb-sign/source.tar.gz`, linked from the footer ("Source code"). It is `git archive` of the deployed commit (`deploy/source_archive.rb`), without `plans/`: the full DocuSeal source, the GXB changes, and these build instructions. No credentials, user data, or documents are included. `docker build .` after writing the archive reproduces the image.
+Every deployment also publishes `/gxb-sign/source.tar.gz`. It is `git archive` of the deployed commit (`deploy/source_archive.rb`), without `plans/`: the full DocuSeal source, the GXB changes, and these build instructions. No credentials, user data, or documents are included. `docker build .` after writing the archive reproduces the image.
 
 ## Data, mail, and recovery
 

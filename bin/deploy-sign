@@ -7,6 +7,7 @@ require 'yaml'
 require 'erb'
 require_relative '../deploy/prepare'
 require_relative '../deploy/source_archive'
+require_relative '../deploy/publish_source'
 
 Dir.chdir(File.expand_path('..', __dir__))
 backup = ARGV.fetch(0) { abort 'Usage: bin/deploy-sign BACKUP_TARBALL_NAME (from /opt/sign/backups/)' }
@@ -29,6 +30,9 @@ abort 'Registry login failed' unless system(*kamal, 'registry', 'login')
 abort 'Image build and push failed' unless system(*kamal, 'build', 'push', '--version', version)
 abort 'Tree changed during build' unless `git status --porcelain`.strip.empty? && `git rev-parse HEAD`.strip == version
 SignPrepare.run(version, backup)
+
+# Publish the source before the new version serves users (AGPL section 13).
+abort 'Publishing source failed' unless SignPublishSource.run(version)
 
 # redeploy: pull, stop stale containers, boot the app. Unlike `deploy`, it does not boot kamal-proxy.
 exec(*kamal, 'redeploy', '--skip-push', '--version', version)

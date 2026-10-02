@@ -23,7 +23,7 @@ abort 'FAIL: favicon' unless html.include?('href="/gxb-sign/favicon.svg"')
 abort 'FAIL: builder branding stylesheet' unless html.include?('href="/gxb-sign/builder-branding-v1.css"')
 abort 'FAIL: DocuSeal credit' unless html.include?('Based on <a href="https://github.com/docusealco/docuseal"')
 abort 'FAIL: powered-by footer' if html.match?(/powered by/i)
-abort 'FAIL: source link' unless html.include?('href="/gxb-sign/source.tar.gz"')
+abort 'FAIL: source link' unless html.include?('href="https://github.com/gxbvc/sign"')
 manifest = JSON.parse(fetch.call('/manifest.json'))
 abort 'FAIL: manifest name' unless manifest['name'] == 'GXB Sign'
 Dir[File.join(__dir__, 'branding/public/*')].each do |path|
