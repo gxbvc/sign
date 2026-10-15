@@ -70,7 +70,12 @@ describe User do
         'x@evil.com,y@gxb.vc',
         "x@evil.com\ny@gxb.vc",
         'Y <y@gxb.vc>',
-        'y@gxb.vc.evil.com'
+        'y@gxb.vc.evil.com',
+        '=?utf-8?q?x=40evil.test=2c?=@gxb.vc',
+        'x%40evil.test@gxb.vc',
+        'x=y@gxb.vc',
+        'x?y@gxb.vc',
+        '"x"@gxb.vc'
       ].each do |email|
         expect(described_class.find_or_provision_by_auth_claims('sub' => 'uid-5', 'email' => email)).to be_nil
       end
@@ -83,6 +88,14 @@ describe User do
       user = described_class.find_or_provision_by_auth_claims('sub' => 'uid-6', 'email' => ' Y@GXB.VC ')
 
       expect(user).to have_attributes(email: 'y@gxb.vc', role: User::ADMIN_ROLE)
+    end
+
+    it 'provisions plus-tag, dotted and underscore mailboxes at gxb.vc' do
+      ['first.last+tag@gxb.vc', 'a_b-c@gxb.vc'].each_with_index do |email, i|
+        user = described_class.find_or_provision_by_auth_claims('sub' => "uid-t#{i}", 'email' => email)
+
+        expect(user).to have_attributes(email:)
+      end
     end
 
     it 'never signs in an existing gxbot user' do

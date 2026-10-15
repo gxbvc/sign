@@ -7,6 +7,7 @@ module GxbSsoUser
   class IdentityMismatch < StandardError; end
 
   GXB_DOMAIN = 'gxb.vc'
+  EMAIL_SHAPE = /\A[a-z0-9._+-]+@[a-z0-9-]+(\.[a-z0-9-]+)+\z/
   NEVER_SIGN_IN = %w[gxbot@gxb.vc].freeze
 
   module ClassMethods
@@ -59,10 +60,11 @@ module GxbSsoUser
       raise IdentityMismatch, user.email
     end
 
-    # The part after the @ of one plain mailbox, or nil for anything else (lists, display names, line breaks).
+    # The part after the @ of one plain mailbox, or nil for anything else (lists, display names, line breaks,
+    # encoded words such as =?utf-8?q?x=40evil.test=2c?=@gxb.vc).
     def domain_of(email)
       email = email.to_s.strip.downcase
-      email.match?(/\A[^@\s,;<>]+@[^@\s,;<>]+\z/) ? email.split('@', 2).last : nil
+      email.match?(EMAIL_SHAPE) ? email.split('@', 2).last : nil
     end
 
     private
