@@ -62,6 +62,29 @@ describe User do
       expect(described_class.count).to eq(1)
     end
 
+    it 'does not even try to provision an email that is not one plain @gxb.vc mailbox' do
+      allow(described_class).to receive(:create!).and_call_original
+
+      [
+        'x@evil.com, y@gxb.vc',
+        'x@evil.com,y@gxb.vc',
+        "x@evil.com\ny@gxb.vc",
+        'Y <y@gxb.vc>',
+        'y@gxb.vc.evil.com'
+      ].each do |email|
+        expect(described_class.find_or_provision_by_auth_claims('sub' => 'uid-5', 'email' => email)).to be_nil
+      end
+
+      expect(described_class).not_to have_received(:create!)
+      expect(described_class.count).to eq(1)
+    end
+
+    it 'provisions an upper-case @GXB.VC email as the same lower-case address' do
+      user = described_class.find_or_provision_by_auth_claims('sub' => 'uid-6', 'email' => ' Y@GXB.VC ')
+
+      expect(user).to have_attributes(email: 'y@gxb.vc', role: User::ADMIN_ROLE)
+    end
+
     it 'never signs in an existing gxbot user' do
       create(:user, account:, email: 'gxbot@gxb.vc', auth_uid: 'uid-bot')
 

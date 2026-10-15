@@ -6,7 +6,7 @@ module GxbSsoUser
 
   class IdentityMismatch < StandardError; end
 
-  GXB_DOMAIN = '@gxb.vc'
+  GXB_DOMAIN = 'gxb.vc'
   NEVER_SIGN_IN = %w[gxbot@gxb.vc].freeze
 
   module ClassMethods
@@ -59,10 +59,16 @@ module GxbSsoUser
       raise IdentityMismatch, user.email
     end
 
+    # The part after the @ of one plain mailbox, or nil for anything else (lists, display names, line breaks).
+    def domain_of(email)
+      email = email.to_s.strip.downcase
+      email.match?(/\A[^@\s,;<>]+@[^@\s,;<>]+\z/) ? email.split('@', 2).last : nil
+    end
+
     private
 
     def provision_gxb_user(email, auth_uid, name)
-      return unless email.end_with?(GXB_DOMAIN)
+      return unless domain_of(email) == GXB_DOMAIN
 
       account = active.order(:created_at, :id).first&.account
       return if account.nil? || account.archived_at?
