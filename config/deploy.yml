@@ -3,6 +3,13 @@
 service: sign
 image: gxbvc/sign
 
+# Docker log rotation (ticket #1987): 5 files of 10 MB per container, so logs cover a day.
+logging:
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
 servers:
   web:
     hosts:
