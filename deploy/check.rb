@@ -50,6 +50,10 @@ check("branding baked into image", [
   "COPY deploy/branding/public/favicon.ico deploy/branding/public/favicon.svg /app/public/",
   "COPY deploy/build/source.tar.gz /app/public/gxb-sign/source.tar.gz"
 ].all? { |line| dockerfile.include?(line) })
+check("exact emSign ECC G3 exclusion built into app", dockerfile.include?("COPY deploy/strip_emsign_g3.rb /tmp/strip_emsign_g3.rb") &&
+  dockerfile.include?("RUN ruby /tmp/strip_emsign_g3.rb /etc/ssl/certs/ca-certificates.crt") &&
+  File.read(File.join(__dir__, "strip_emsign_g3.rb")).include?("86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b") &&
+  !system("git", "-C", ROOT, "check-ignore", "-q", "deploy/strip_emsign_g3.rb"))
 check("image version matches release", File.read(File.join(ROOT, "Dockerfile")).include?("ARG DOCUSEAL_VERSION=#{release.fetch('version')}\n"))
 check("upstream image layout", dockerfile.include?("WORKDIR /data/docuseal") && dockerfile.include?('CMD ["/app/bin/bundle", "exec", "puma", "-C", "/app/config/puma.rb", "--dir", "/app"]'))
 dockerignore = File.read(File.join(ROOT, ".dockerignore")).lines.map(&:strip)
