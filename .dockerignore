@@ -38,6 +38,7 @@
 !/deploy/branding
 !/deploy/candidate_test.rb
 !/deploy/candidate_data_test.rb
+!/deploy/strip_emsign_g3.rb
 !/deploy/build
 /deploy/build/*
 !/deploy/build/source.tar.gz
