@@ -9,6 +9,7 @@ describe 'GXB SSO' do
   let!(:admin) { create(:user, account:, email: 'admin@example.com', password: 'correct-password-1') }
   let(:template) { create(:template, account:, author: admin) }
   let(:token_url) { 'https://auth.gxb.vc/oauth/token' }
+  let(:userinfo_url) { 'https://auth.gxb.vc/oauth/userinfo' }
   let(:callback_url) { "#{Docuseal::DEFAULT_APP_URL}/auth/callback" }
 
   around do |example|
@@ -59,6 +60,15 @@ describe 'GXB SSO' do
 
     stub_request(:post, token_url).to_return(status: 200, body: { access_token: token }.to_json,
                                              headers: { 'Content-Type' => 'application/json' })
+
+    token
+  end
+
+  # auth.gxb.vc's live answer about the person behind this access token.
+  def stub_userinfo(token, body)
+    stub_request(:get, userinfo_url).with(headers: { 'Authorization' => "Bearer #{token}" })
+                                    .to_return(status: 200, body: body.to_json,
+                                               headers: { 'Content-Type' => 'application/json' })
   end
 
   def staff_signed_in?
@@ -269,6 +279,7 @@ describe 'GXB SSO' do
       get '/auth/callback', params: { state:, code: 'abc' }
 
       expect(response).to redirect_to('/templates')
+      expect(a_request(:get, userinfo_url)).not_to have_been_made
       expect(a_request(:post, token_url).with(body: hash_including('code' => 'abc', 'client_id' => 'sign',
                                                                    'client_secret' => secret,
                                                                    'redirect_uri' => callback_url)))
@@ -288,25 +299,90 @@ describe 'GXB SSO' do
       expect(staff_signed_in?).to be(true)
     end
 
-    it 'provisions an unknown @gxb.vc user' do
+    it 'provisions an unknown @gxb.vc user whom Auth says is staff, asking userinfo with the access token' do
       state = start_gxb_sign_in
-      stub_token('sub' => 'uid-ricky', 'email' => 'ricky@gxb.vc', 'name' => 'Ricky Bureau')
+      token = stub_token('sub' => 'uid-ricky', 'email' => 'ricky@gxb.vc', 'name' => 'Ricky Bureau')
+      stub_userinfo(token, sub: 'uid-ricky', email: 'ricky@gxb.vc', email_verified: true, staff: true)
 
       expect { get '/auth/callback', params: { state:, code: 'abc' } }.to change(User, :count).by(1)
 
       user = User.find_by(email: 'ricky@gxb.vc')
       expect(user).to have_attributes(account:, auth_uid: 'uid-ricky', role: 'admin', first_name: 'Ricky',
                                       last_name: 'Bureau')
+      expect(a_request(:get, userinfo_url).with(headers: { 'Authorization' => "Bearer #{token}" }))
+        .to have_been_made.once
       expect(staff_signed_in?).to be(true)
     end
 
-    it 'refuses an unknown non-gxb user' do
+    ['adrian@gxb.vc', 'Adrian+x@gxb.vc', 'ADRIAN@GXB.VC'].each do |email|
+      it "refuses #{email} when Auth says the person is not staff, with no user created" do
+        state = start_gxb_sign_in
+        token = stub_token('sub' => 'uid-adrian', 'email' => email)
+        stub_userinfo(token, sub: 'uid-adrian', email: email.downcase, email_verified: true, staff: false)
+
+        expect { get '/auth/callback', params: { state:, code: 'abc' } }.not_to change(User, :count)
+
+        expect_refused('does not have access to GXB Sign')
+        expect(staff_signed_in?).to be(false)
+      end
+    end
+
+    {
+      'a userinfo timeout' => ->(stub) { stub.to_timeout },
+      'userinfo HTTP 500' => ->(stub) { stub.to_return(status: 500) },
+      'userinfo bad JSON' => ->(stub) { stub.to_return(status: 200, body: 'not json') },
+      'a userinfo sub mismatch' => ->(stub) { stub.to_return(body: { sub: 'uid-x', staff: true }.to_json) },
+      'a missing staff field' => ->(stub) { stub.to_return(body: { sub: 'uid-new' }.to_json) },
+      'staff "true" as a string' => ->(stub) { stub.to_return(body: { sub: 'uid-new', staff: 'true' }.to_json) }
+    }.each do |label, answer|
+      it "refuses a new @gxb.vc user on #{label}, with no user created" do
+        state = start_gxb_sign_in
+        stub_token('sub' => 'uid-new', 'email' => 'new@gxb.vc')
+        answer.call(stub_request(:get, userinfo_url))
+
+        expect { get '/auth/callback', params: { state:, code: 'abc' } }.not_to change(User, :count)
+
+        expect_refused('does not have access to GXB Sign')
+        expect(staff_signed_in?).to be(false)
+      end
+    end
+
+    it 'never writes the access token to the log' do
+      log = StringIO.new
+      logger = ActiveSupport::Logger.new(log)
+      allow(Rails).to receive(:logger).and_return(logger)
       state = start_gxb_sign_in
-      stub_token('sub' => 'uid-2', 'email' => 'someone@example.org')
+      token = stub_token('sub' => 'uid-adrian', 'email' => 'adrian@gxb.vc')
+      stub_userinfo(token, sub: 'uid-adrian', staff: false)
+
+      get '/auth/callback', params: { state:, code: 'abc' }
+
+      expect_refused
+      expect(log.string).to include('GXB SSO staff check refused a new user: not_staff')
+      expect(log.string).not_to include(token)
+    end
+
+    it 'signs in an existing @gxb.vc user with no userinfo call' do
+      create(:user, account:, email: 'adrian@gxb.vc', auth_uid: 'uid-adrian')
+      state = start_gxb_sign_in
+      stub_token('sub' => 'uid-adrian', 'email' => 'adrian@gxb.vc')
+
+      expect { get '/auth/callback', params: { state:, code: 'abc' } }.not_to change(User, :count)
+
+      expect(response).to redirect_to('/')
+      expect(a_request(:get, userinfo_url)).not_to have_been_made
+      expect(staff_signed_in?).to be(true)
+    end
+
+    it 'refuses an unknown non-gxb user, even one Auth says is staff' do
+      state = start_gxb_sign_in
+      token = stub_token('sub' => 'uid-2', 'email' => 'someone@example.org')
+      stub_userinfo(token, sub: 'uid-2', staff: true)
 
       expect { get '/auth/callback', params: { state:, code: 'abc' } }.not_to change(User, :count)
 
       expect_refused
+      expect(a_request(:get, userinfo_url)).not_to have_been_made
       expect(staff_signed_in?).to be(false)
     end
 
@@ -327,21 +403,25 @@ describe 'GXB SSO' do
       create(:user, account:)
       admin.update!(archived_at: Time.current)
       state = start_gxb_sign_in
-      stub_token('sub' => 'uid-1', 'email' => admin.email)
+      token = stub_token('sub' => 'uid-1', 'email' => admin.email)
+      stub_userinfo(token, sub: 'uid-1', staff: true)
 
-      get '/auth/callback', params: { state:, code: 'abc' }
+      expect { get '/auth/callback', params: { state:, code: 'abc' } }.not_to change(User, :count)
 
       expect_refused
+      expect(a_request(:get, userinfo_url)).not_to have_been_made
       expect(staff_signed_in?).to be(false)
     end
 
     it 'refuses gxbot' do
       state = start_gxb_sign_in
-      stub_token('sub' => 'uid-bot', 'email' => 'gxbot@gxb.vc')
+      token = stub_token('sub' => 'uid-bot', 'email' => 'gxbot@gxb.vc')
+      stub_userinfo(token, sub: 'uid-bot', staff: true)
 
       expect { get '/auth/callback', params: { state:, code: 'abc' } }.not_to change(User, :count)
 
       expect_refused
+      expect(a_request(:get, userinfo_url)).not_to have_been_made
     end
   end
 
