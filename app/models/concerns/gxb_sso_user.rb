@@ -12,9 +12,11 @@ module GxbSsoUser
 
   module ClassMethods
     # Resolves auth.gxb.vc JWT claims to a local User, or nil to refuse.
-    # Matches auth_uid (sub) first, then email. An unknown @gxb.vc email becomes an admin in the single
-    # existing account. Other unknown emails are refused. Archived users and gxbot are always refused.
-    def find_or_provision_by_auth_claims(claims)
+    # Matches auth_uid (sub) first, then email. An unknown email becomes an admin in the single existing account
+    # only when it is @gxb.vc AND auth.gxb.vc says live (userinfo, with this sign-in's access token) that the
+    # person is staff. Other unknown emails are refused. Archived users and gxbot are always refused. A matched
+    # user never causes a userinfo call.
+    def find_or_provision_by_auth_claims(claims, access_token: nil)
       return unless claims.respond_to?(:[])
 
       auth_uid = claims['sub'].to_s
@@ -31,7 +33,7 @@ module GxbSsoUser
         return user
       end
 
-      provision_gxb_user(email, auth_uid, claims['name'])
+      provision_gxb_user(email, auth_uid, claims['name'], access_token)
     rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
       Rails.logger.warn("GXB SSO could not save user: #{e.class}")
 
@@ -69,8 +71,10 @@ module GxbSsoUser
 
     private
 
-    def provision_gxb_user(email, auth_uid, name)
+    def provision_gxb_user(email, auth_uid, name, access_token)
       return unless domain_of(email) == GXB_DOMAIN
+      # The domain alone is not enough: contractors can have gxb.vc addresses. Auth's live staff claim decides.
+      return unless GxbSso.staff?(access_token, auth_uid)
 
       account = active.order(:created_at, :id).first&.account
       return if account.nil? || account.archived_at?

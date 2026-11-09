@@ -16,11 +16,13 @@ class AuthCallbacksController < ApplicationController
     return refuse(FAILED) unless GxbSso.valid_state?(expected_state, params[:state].to_s)
     return refuse(FAILED) if params[:code].blank?
 
-    claims = GxbSso.claims_for_code(params[:code].to_s)
+    identity = GxbSso.identity_for_code(params[:code].to_s)
 
-    return refuse(FAILED) unless claims
+    return refuse(FAILED) unless identity
 
-    user = User.find_or_provision_by_auth_claims(claims)
+    claims = identity.claims
+    # The access token is used only if this is a new user, for Auth's live staff check. It is never stored.
+    user = User.find_or_provision_by_auth_claims(claims, access_token: identity.access_token)
 
     unless user&.active_for_authentication?
       Rails.logger.warn("GXB SSO refused sign-in for #{claims['email'].to_s.inspect}")
