@@ -5,6 +5,7 @@ require "open3"
 require "erb"
 require "tmpdir"
 require "fileutils"
+require_relative "lock_compare"
 
 ROOT = File.expand_path("..", __dir__)
 config = YAML.safe_load(ERB.new(File.read(File.join(ROOT, "config/deploy.yml"))).result)
@@ -38,6 +39,7 @@ check("Chat API key source", File.read(File.join(ROOT, ".kamal/secrets")).includ
 check("branding tests", system(RbConfig.ruby, File.join(__dir__, "test_branding.rb")))
 ruby_files = Dir[File.join(__dir__, "*.rb")] + [File.join(__dir__, "branding/initializer.rb"), File.join(ROOT, "bin/deploy-sign")]
 check("deployment Ruby lint", system({ "BUNDLE_GEMFILE" => File.join(__dir__, "Gemfile") }, "bundle", "exec", "rubocop", "--config", File.join(__dir__, "rubocop.yml"), *ruby_files))
+check("lock comparison tests", system({ "BUNDLE_GEMFILE" => File.join(__dir__, "Gemfile") }, "bundle", "exec", "ruby", File.join(__dir__, "test_lock_compare.rb")))
 check("secret loader tests", system({ "BUNDLE_GEMFILE" => File.join(__dir__, "Gemfile") }, "bundle", "exec", "ruby", File.join(__dir__, "test_secrets.rb")))
 check("numeric release", release.fetch("version").match?(/\A\d+\.\d+\.\d+\z/))
 check("copyright retained", File.read(File.join(ROOT, "LICENSE_ADDITIONAL_TERMS")).include?("retain the original DocuSeal attribution"))
@@ -83,6 +85,17 @@ check("allowlisted changed files exist upstream", modified.all?(&in_upstream))
 check("allowlisted GXB files are new", added.none?(&in_upstream) && (modified & added).empty?)
 allowed = (modified + added).sort
 check("tree matches upstream #{commit[0, 12]} outside the overlay (changed: #{changed.join(', ')})", changed == allowed)
+
+# Gemfile.lock may differ from upstream only in gem versions: same gem names and platform variants, same PLATFORMS, rubygems.org only.
+if modified.include?("Gemfile.lock")
+  upstream_lock, lock_status = Open3.capture2("git", "-C", ROOT, "show", "#{commit}:Gemfile.lock")
+  check("upstream Gemfile.lock read", lock_status.success?)
+  lock_problems = LockCompare.problems(upstream_lock, File.read(File.join(ROOT, "Gemfile.lock")))
+  check(lock_problems.empty? ? "Gemfile.lock differs from upstream in versions only (same gems, platforms, rubygems.org source)" : "Gemfile.lock differs from upstream beyond versions: #{lock_problems.join('; ')}", lock_problems.empty?)
+end
+# deploy/Gemfile.lock (Kamal tooling) has no upstream twin; only its source rule applies.
+deploy_lock_problems = LockCompare.source_only_problems(File.read(File.join(__dir__, "Gemfile.lock")))
+check(deploy_lock_problems.empty? ? "deploy/Gemfile.lock uses rubygems.org only" : "deploy/Gemfile.lock: #{deploy_lock_problems.join('; ')}", deploy_lock_problems.empty?)
 
 # Each GXB migration has an allowlisted file, is newer than production today, and schema.rb is at the newest.
 migrations = release.fetch("gxb_migrations")
