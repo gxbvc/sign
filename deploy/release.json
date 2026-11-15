@@ -10,6 +10,7 @@
     ".dockerignore",
     "Dockerfile",
     "Gemfile.lock",
+    "app/controllers/errors_controller.rb",
     "app/controllers/mcp/protocol_controller.rb",
     "app/javascript/submission_form/completed.vue",
     "app/mailers/application_mailer.rb",
@@ -49,6 +50,7 @@
     "spec/models/gxb_field_guard_spec.rb",
     "spec/models/gxb_sso_user_spec.rb",
     "spec/requests/chat_api_tools_spec.rb",
+    "spec/requests/errors_spec.rb",
     "spec/requests/gxb_field_guard_spec.rb",
     "spec/requests/gxb_sso_spec.rb"
   ],

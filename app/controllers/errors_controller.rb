@@ -24,6 +24,10 @@ class ErrorsController < ActionController::Base
     JSON::ParserError
   ].freeze
 
+  # Error pages hold no data. A scanner asking for /secrets.js must get a plain 404,
+  # not the cross-origin JavaScript error (a failsafe 500).
+  skip_after_action :verify_same_origin_request, raise: false
+
   def show
     if request.original_fullpath.in?(ENTERPRISE_PATHS) && error_status_code == 404
       return render json: { status: 404, message: ENTERPRISE_FEATURE_MESSAGE }, status: :not_found
@@ -40,7 +44,9 @@ class ErrorsController < ActionController::Base
         render json: { status: error_status_code, error: }.compact, status: error_status_code
       end
 
-      f.any { render error_status_code.to_s, status: error_status_code }
+      f.html { render error_status_code.to_s, status: error_status_code }
+
+      f.any { head error_status_code }
     end
   end
 
