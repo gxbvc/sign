@@ -22,6 +22,7 @@ module SignSourceArchive
     deploy/candidate_test.rb
     deploy/candidate_data_test.rb
     deploy/check.rb
+    deploy/test_public_source.rb
   ].freeze
 
   def self.write(commit, path = PATH)
