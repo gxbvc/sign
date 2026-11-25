@@ -33,16 +33,27 @@
     "app/controllers/auth_callbacks_controller.rb",
     "app/controllers/chat_api/tools_controller.rb",
     "app/controllers/concerns/chat_api_authenticatable.rb",
+    "app/controllers/concerns/gxb_api_authenticatable.rb",
     "app/controllers/concerns/gxb_sso_no_password_reset.rb",
     "app/controllers/concerns/gxb_sso_sign_in.rb",
-    "app/models/concerns/gxb_submission_fields.rb",
+    "app/controllers/gxb_api/meta_controller.rb",
+    "app/controllers/gxb_api/operations_controller.rb",
     "app/models/concerns/gxb_sso_user.rb",
+    "app/models/concerns/gxb_submission_fields.rb",
     "app/models/concerns/gxb_template_fields.rb",
+    "app/models/gxb_api_idempotency_key.rb",
     "app/views/auth_callbacks/refused.html.erb",
     "config/initializers/auth_gxb.rb",
     "config/initializers/chat_api.rb",
     "config/initializers/field_guard_gxb.rb",
+    "config/initializers/gxb_api.rb",
     "db/migrate/20260925190000_add_auth_uid_to_users.rb",
+    "db/migrate/20261125120000_create_gxb_api_idempotency_keys.rb",
+    "lib/gxb_api_accounts.rb",
+    "lib/gxb_api_idempotency.rb",
+    "lib/gxb_api_introspection.rb",
+    "lib/gxb_api_manifest.rb",
+    "lib/gxb_api_operations.rb",
     "lib/gxb_chat_tools.rb",
     "lib/gxb_field_guard.rb",
     "lib/gxb_safe_download.rb",
@@ -51,10 +62,12 @@
     "spec/models/gxb_sso_user_spec.rb",
     "spec/requests/chat_api_tools_spec.rb",
     "spec/requests/errors_spec.rb",
+    "spec/requests/gxb_api_spec.rb",
     "spec/requests/gxb_field_guard_spec.rb",
     "spec/requests/gxb_sso_spec.rb"
   ],
   "gxb_migrations": [
-    "20260925190000"
+    "20260925190000",
+    "20261125120000"
   ]
 }

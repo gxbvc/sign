@@ -14,7 +14,8 @@ class SecretsTest < Minitest::Test
     "SMTP_USERNAME=$(ruby deploy/secret.rb smtp SMTP_USERNAME)\n",
     "SMTP_PASSWORD=$(ruby deploy/secret.rb smtp SMTP_PASSWORD)\n",
     "AUTH_GXB_CLIENT_SECRET=$(ruby deploy/secret.rb auth AUTH_GXB_CLIENT_SECRET)\n",
-    "CHAT_API_KEY=$(ruby deploy/secret.rb chat CHAT_API_KEY)\n"
+    "CHAT_API_KEY=$(ruby deploy/secret.rb chat CHAT_API_KEY)\n",
+    "AUTH_INTROSPECTION_SECRET=$(ruby deploy/secret.rb auth AUTH_INTROSPECTION_SECRET)\n"
   ].freeze
 
   def setup
@@ -23,7 +24,8 @@ class SecretsTest < Minitest::Test
     @auth_path = File.join(@directory, 'auth.json')
     @smtp = { 'SMTP_USERNAME' => 'test@example.invalid',
               'SMTP_PASSWORD' => %q(test-$HOME-${PASSWORD}-\$HOME-$(id)-'"special) }
-    @auth = { 'AUTH_GXB_CLIENT_SECRET' => %q(fake-auth-$HOME-${X}-$(id)-'"secret) }
+    @auth = { 'AUTH_GXB_CLIENT_SECRET' => %q(fake-auth-$HOME-${X}-$(id)-'"secret),
+              'AUTH_INTROSPECTION_SECRET' => %q(fake-introspect-$HOME-${Y}-$(id)-'"secret) }
     @chat_path = File.join(@directory, 'chat.json')
     @chat = { 'CHAT_API_KEY' => %q(fake-chat-$HOME-${KEY}-$(id)-'"key) }
     File.write(@smtp_path, JSON.generate(@smtp), perm: 0o600)
@@ -50,7 +52,7 @@ class SecretsTest < Minitest::Test
   end
 
   def test_kamal_secrets_use_the_loader
-    lines = File.readlines(File.join(root, '.kamal/secrets')).grep(/\A(SMTP_|AUTH_GXB_|CHAT_API_)/)
+    lines = File.readlines(File.join(root, '.kamal/secrets')).grep(/\A(SMTP_|AUTH_GXB_|CHAT_API_|AUTH_INTROSPECTION_)/)
     assert_equal LOADER_LINES, lines
   end
 
@@ -66,6 +68,7 @@ class SecretsTest < Minitest::Test
   def test_rejects_readable_secret_files_without_leaking
     [[@smtp_path, %w[smtp SMTP_PASSWORD], @smtp['SMTP_PASSWORD']],
      [@auth_path, %w[auth AUTH_GXB_CLIENT_SECRET], @auth['AUTH_GXB_CLIENT_SECRET']],
+     [@auth_path, %w[auth AUTH_INTROSPECTION_SECRET], @auth['AUTH_INTROSPECTION_SECRET']],
      [@chat_path, %w[chat CHAT_API_KEY], @chat['CHAT_API_KEY']]].each do |path, args, value|
       File.chmod(0o644, path)
       stdout, stderr, status = loader(*args)
@@ -78,6 +81,7 @@ class SecretsTest < Minitest::Test
   def test_rejects_unknown_source_or_key
     [%w[smtp OTHER], %w[auth SMTP_PASSWORD], %w[smtp AUTH_GXB_CLIENT_SECRET], %w[other SMTP_PASSWORD],
      %w[chat AUTH_GXB_CLIENT_SECRET], %w[auth CHAT_API_KEY], %w[smtp CHAT_API_KEY],
+     %w[chat AUTH_INTROSPECTION_SECRET], %w[smtp AUTH_INTROSPECTION_SECRET],
      %w[SMTP_PASSWORD], %w[smtp SMTP_PASSWORD extra]].each do |args|
       stdout, _, status = loader(*args)
       refute status.success?, args.join(' ')

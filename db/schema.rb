@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gin"
   enable_extension "pg_catalog.plpgsql"
@@ -255,6 +255,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_190000) do
     t.text "value", null: false
     t.index ["user_id", "key"], name: "index_encrypted_user_configs_on_user_id_and_key", unique: true
     t.index ["user_id"], name: "index_encrypted_user_configs_on_user_id"
+  end
+
+  create_table "gxb_api_idempotency_keys", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "key_digest", null: false
+    t.string "operation_id", null: false
+    t.string "request_digest", null: false
+    t.text "response_body"
+    t.integer "response_status"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["created_at"], name: "index_gxb_api_idempotency_keys_on_created_at"
+    t.index ["user_id", "operation_id", "key_digest"], name: "index_gxb_api_idempotency_keys_unique", unique: true
   end
 
   create_table "lock_events", force: :cascade do |t|
@@ -599,6 +612,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_190000) do
   add_foreign_key "email_messages", "users", column: "author_id"
   add_foreign_key "encrypted_configs", "accounts"
   add_foreign_key "encrypted_user_configs", "users"
+  add_foreign_key "gxb_api_idempotency_keys", "users", on_delete: :cascade
   add_foreign_key "mcp_tokens", "users"
   add_foreign_key "oauth_access_grants", "oauth_applications", column: "application_id"
   add_foreign_key "oauth_access_grants", "users", column: "resource_owner_id"
