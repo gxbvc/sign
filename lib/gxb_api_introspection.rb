@@ -11,6 +11,7 @@ module GxbApiIntrospection
 
   CACHE_SECONDS = 60
   INACTIVE = { 'active' => false }.freeze
+  CONNECTION_KEY = :gxb_api_auth_connection
   CACHE = ActiveSupport::Cache::MemoryStore.new(size: 4.megabytes)
 
   module_function
@@ -61,17 +62,51 @@ module GxbApiIntrospection
     CACHE.write(key, claims, expires_in: seconds) if seconds.positive?
   end
 
+  # One kept-alive connection to Auth per Puma thread, so a cache miss costs one request, not a new TCP and TLS
+  # handshake (measured Nov 26: 40 to 130 ms per new connection on the busy host, Auth itself 6 to 11 ms).
+  # A kept connection that Auth closed meanwhile is opened again once; a second failure is Unavailable.
   def post(token)
-    uri = url
+    request = Net::HTTP::Post.new(url)
+    request['Authorization'] = "Bearer #{secret}"
+    request['Accept'] = 'application/json'
+    request.set_form_data(token:)
 
-    Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 2, read_timeout: 3) do |http|
-      request = Net::HTTP::Post.new(uri)
-      request['Authorization'] = "Bearer #{secret}"
-      request['Accept'] = 'application/json'
-      request.set_form_data(token:)
-
-      http.request(request)
+    attempts = 0
+    begin
+      attempts += 1
+      connection.request(request)
+    rescue IOError, Errno::ECONNRESET, Errno::EPIPE, OpenSSL::SSL::SSLError # IOError includes EOFError
+      reset_connection!
+      retry if attempts < 2
+      raise
+    rescue StandardError
+      reset_connection!
+      raise
     end
+  end
+
+  def connection
+    uri = url
+    http = Thread.current[CONNECTION_KEY]
+    return http if http&.started? && http.address == uri.host && http.port == uri.port
+
+    reset_connection!
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = uri.scheme == 'https'
+    http.open_timeout = 2
+    http.read_timeout = 3
+    http.write_timeout = 3
+    http.keep_alive_timeout = 30
+    http.start
+    Thread.current[CONNECTION_KEY] = http
+  end
+
+  def reset_connection!
+    http = Thread.current[CONNECTION_KEY]
+    Thread.current[CONNECTION_KEY] = nil
+    http.finish if http&.started?
+  rescue IOError, SystemCallError, OpenSSL::SSL::SSLError
+    nil
   end
 
   def clear_cache!

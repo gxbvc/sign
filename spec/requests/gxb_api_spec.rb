@@ -16,10 +16,12 @@ describe 'GXB API' do
     previous = ENV.fetch('AUTH_INTROSPECTION_SECRET', nil)
     ENV['AUTH_INTROSPECTION_SECRET'] = secret
     GxbApiIntrospection.clear_cache!
+    GxbApiIntrospection.reset_connection!
     example.run
   ensure
     ENV['AUTH_INTROSPECTION_SECRET'] = previous
     GxbApiIntrospection.clear_cache!
+    GxbApiIntrospection.reset_connection!
   end
 
   # Auth's real introspection shape for an exchanged token (contract 2.1).
@@ -150,6 +152,28 @@ describe 'GXB API' do
       2.times { get '/gxb/v1/templates', headers: bearer(token) }
 
       expect(a_request(:post, introspect_url)).to have_been_made.twice
+    end
+
+    it 'keeps one connection to Auth for many introspections, and opens it again once when Auth closed it' do
+      allow(Net::HTTP).to receive(:new).and_call_original
+
+      3.times { get '/gxb/v1/templates', headers: bearer(read_token) }
+      expect(response).to have_http_status(:ok)
+      expect(a_request(:post, introspect_url)).to have_been_made.times(3)
+      expect(Net::HTTP).to have_received(:new).once
+
+      dropped = 'tok-dropped'
+      stub_request(:post, introspect_url).with(body: { 'token' => dropped })
+                                         .to_raise(EOFError).then
+                                         .to_return(status: 200, body: claims('scope' => 'read').to_json)
+      get '/gxb/v1/templates', headers: bearer(dropped)
+      expect(response).to have_http_status(:ok)
+      expect(Net::HTTP).to have_received(:new).twice
+
+      stub_request(:post, introspect_url).with(body: { 'token' => 'tok-gone' }).to_raise(Errno::ECONNRESET)
+      get '/gxb/v1/templates', headers: bearer('tok-gone')
+      expect_error(503, 'auth_unavailable')
+      expect(a_request(:post, introspect_url).with(body: { 'token' => 'tok-gone' })).to have_been_made.twice
     end
 
     it "gives 404 for another account's record, never the record" do
